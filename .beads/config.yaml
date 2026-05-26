@@ -8,9 +8,7 @@
 # Example: issue-prefix: "myproject" creates issues like "myproject-1", "myproject-2", etc.
 # issue-prefix: ""
 
-# Use no-db mode: JSONL-only, no Dolt database
-# When true, bd will use .beads/issues.jsonl as the source of truth
-# no-db: false
+no-db: true
 
 # Enable JSON output by default
 # json: false
@@ -52,11 +50,5 @@
 # - linear.api-key
 # - github.org
 # - github.repo
-
-dolt.shared-server: true
-sandbox: true
-backup:
-  enabled: false
-  git-push: false
 
 sync.remote: "git+https://github.com/luahoateam/crawl4ai.git"
