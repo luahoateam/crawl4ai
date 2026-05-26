@@ -288,6 +288,8 @@ scripts/
 !scripts/gen-sbom.sh
 !scripts/update_stats.py
 !scripts/langextract_bridge.py
+!scripts/formatter.mjs
+!scripts/d1_sync.mjs
 
 
 # Databse files
