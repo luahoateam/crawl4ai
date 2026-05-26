@@ -29,14 +29,67 @@ const REAL_ESTATE_SYMBOLS = new Set([
 ]);
 
 /**
- * Xác định phân ngành của symbol
+ * Xác định phân ngành của symbol dựa trên overview.json hoặc danh sách fallback lớn
  * @param {string} symbol
  * @returns {"banking" | "real_estate" | "generic"}
  */
 export function getSectorOfSymbol(symbol) {
   const sym = symbol.toUpperCase();
-  if (BANKING_SYMBOLS.has(sym)) return 'banking';
-  if (REAL_ESTATE_SYMBOLS.has(sym)) return 'real_estate';
+  const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
+  const overviewPath = path.join(rawDir, sym, '2025', 'overview.json');
+
+  // Rổ fallback cứng bền bỉ diện rộng
+  const BANKING_FALLBACK = [
+    'ACB', 'BID', 'CTG', 'HDB', 'LPB', 'MBB', 'SHB', 'SSB', 'STB', 'TCB', 'TPB', 'VCB', 'VPB', 'VIB', 'MSB', 'BAB', 'ABB', 'NAB', 'OCB', 'BVB', 'KLB', 'SGB', 'PGB'
+  ];
+  const REAL_ESTATE_FALLBACK = [
+    'VHM', 'VIC', 'VRE', 'KDH', 'NLG', 'DXG', 'PDR', 'DIG', 'CEO', 'DXS', 'CRE', 'KHG', 'TCH', 'HDC', 'HDG', 'SJS', 'SZC', 'IJC', 'BCM', 'KBC', 'LHG', 'D2D', 'NDN'
+  ];
+
+  if (fs.existsSync(overviewPath)) {
+    try {
+      const content = fs.readFileSync(overviewPath, 'utf8');
+      const data = JSON.parse(content);
+      const profile = Array.isArray(data) ? data[0] : data;
+
+      if (profile) {
+        const fieldsToSearch = [
+          profile.icb_name1,
+          profile.icb_name2,
+          profile.icb_name3,
+          profile.icb_name4,
+          profile.business_model,
+          profile.company_profile
+        ].filter(Boolean).map(s => s.toString().toLowerCase());
+
+        const combinedText = fieldsToSearch.join(' | ');
+
+        if (
+          combinedText.includes('ngân hàng') || 
+          combinedText.includes('tín dụng') || 
+          combinedText.includes('banking') || 
+          combinedText.includes('banks')
+        ) {
+          return 'banking';
+        }
+
+        if (
+          combinedText.includes('bất động sản') || 
+          combinedText.includes('địa ốc') || 
+          combinedText.includes('nhà ở') || 
+          combinedText.includes('real estate') ||
+          combinedText.includes('phát triển đô thị')
+        ) {
+          return 'real_estate';
+        }
+      }
+    } catch (e) {
+      // bỏ qua lỗi đọc file
+    }
+  }
+
+  if (BANKING_FALLBACK.includes(sym)) return 'banking';
+  if (REAL_ESTATE_FALLBACK.includes(sym)) return 'real_estate';
   return 'generic';
 }
 

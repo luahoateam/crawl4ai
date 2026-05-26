@@ -62,7 +62,15 @@ export function loadState(stateFile) {
     return { success_list: [] };
   }
   try {
-    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    // Ánh xạ tương thích ngược giữa extracted_list và success_list
+    if (data.extracted_list && !data.success_list) {
+      data.success_list = data.extracted_list;
+    }
+    if (!data.success_list) {
+      data.success_list = [];
+    }
+    return data;
   } catch (error) {
     console.warn(`[WARN] Could not parse state file: ${error.message}. Starting fresh.`);
     return { success_list: [] };
@@ -222,21 +230,38 @@ export async function runVN30Pipeline(options = {}) {
     syncOnly = false,
     symbols = null,
     limit = Infinity,
-    year = 2025
+    year = 2025,
+    all = false
   } = options;
+
+  const pythonExec = options.pythonExec || PYTHON_EXEC;
+  const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
 
   // Quyết định danh sách symbol
   let targetSymbols = VN30_SYMBOLS;
   if (symbols) {
     targetSymbols = symbols.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  } else if (all) {
+    // Nếu chọn --all, bước bóc tách/đồng bộ sẽ lấy toàn bộ các mã đã có thư mục dữ liệu thô ở local
+    if (fs.existsSync(rawDir)) {
+      targetSymbols = fs.readdirSync(rawDir).filter(f => {
+        try {
+          return fs.statSync(path.join(rawDir, f)).isDirectory() && f.length === 3;
+        } catch {
+          return false;
+        }
+      }).map(s => s.toUpperCase());
+      console.log(`[CONDUCTOR] Quét thấy ${targetSymbols.length} mã đã được tải thô ở local.`);
+    } else {
+      console.log(`[CONDUCTOR] Chưa có thư mục dữ liệu thô local.`);
+      targetSymbols = [];
+    }
   }
 
   // Cắt bớt theo giới hạn limit
   targetSymbols = targetSymbols.slice(0, limit);
 
-  const pythonExec = options.pythonExec || PYTHON_EXEC;
-
-  console.log(`[CONDUCTOR-VN30] Khởi động pipeline VN30 năm ${year} cho ${targetSymbols.length} mã.`);
+  console.log(`[CONDUCTOR-VN30] Khởi động pipeline năm ${year} cho ${targetSymbols.length} mã.`);
 
   const runAll = !gatherOnly && !extractOnly && !syncOnly;
 
@@ -246,9 +271,16 @@ export async function runVN30Pipeline(options = {}) {
     console.log(`[CONDUCTOR-VN30] Phase 1/3: Gather (Tải thô)`);
     console.log(`========================================`);
     
-    const symbolsArg = targetSymbols.join(',');
     const gatherScript = path.resolve(__dirname, 'gather_vnstock_raw.py');
-    const cmd = `"${pythonExec}" "${gatherScript}" --symbols "${symbolsArg}" --year ${year} --output-dir "stock_data/vnstock_raw"`;
+    let cmd = `"${pythonExec}" "${gatherScript}" --year ${year} --output-dir "stock_data/vnstock_raw"`;
+    
+    if (all) {
+      cmd += ' --all';
+    } else if (symbols) {
+      cmd += ` --symbols "${targetSymbols.join(',')}"`;
+    } else {
+      cmd += ' --vn30';
+    }
     
     console.log(`[GATHER-RUN] Chạy command: ${cmd}`);
     try {
@@ -266,21 +298,63 @@ export async function runVN30Pipeline(options = {}) {
     console.log(`[CONDUCTOR-VN30] Phase 2/3: Extract (AI Dual-Run)`);
     console.log(`========================================`);
 
-    const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
     const outputDir = path.resolve(__dirname, '..', 'stock_data', 'extracted_structure');
+    const stateFile = path.resolve(__dirname, '..', 'tmp', 'extract_state.json');
 
-    let successCount = 0;
-    for (const sym of targetSymbols) {
-      try {
-        await runAIExtraction({
-          symbol: sym,
-          year,
-          rawDir,
-          outputDir
-        });
-        successCount++;
-      } catch (err) {
-        console.error(`[EXTRACT-RUN] ✗ Lỗi trích xuất AI cho ${sym}: ${err.message}`);
+    // Nạp trạng thái Resume-Capable
+    const state = loadState(stateFile);
+    const successSet = new Set(state.success_list);
+
+    const pendingSymbols = targetSymbols.filter(sym => !successSet.has(`${sym}:${year}`));
+    console.log(`[EXTRACT-RUN] Tổng số: ${targetSymbols.length} mã. Đã hoàn thành trước: ${targetSymbols.length - pendingSymbols.length} mã. Cần chạy tiếp: ${pendingSymbols.length} mã.`);
+
+    // Chia lô (Batching) để xử lý AI diện rộng an toàn (cỡ lô 30)
+    const batches = createBatches(pendingSymbols, 30);
+    console.log(`[EXTRACT-RUN] Đã chia thành ${batches.length} lô để điều tiết AI.`);
+
+    let successCount = targetSymbols.length - pendingSymbols.length;
+
+    for (let b = 0; b < batches.length; b++) {
+      const batch = batches[b];
+      console.log(`\n[BATCH][${b + 1}/${batches.length}] Đang chạy lô ${b + 1} chứa ${batch.length} mã...`);
+
+      for (const sym of batch) {
+        try {
+          const taskKey = `${sym}:${year}`;
+          
+          // Sử dụng executeWithRateLimit để bọc cuộc gọi runAIExtraction
+          await executeWithRateLimit(
+            async () => {
+              return await runAIExtraction({
+                symbol: sym,
+                year,
+                rawDir,
+                outputDir
+              });
+            },
+            sym,
+            {
+              maxRetries: 3,
+              initialDelayMs: 2000,
+              delayBetweenCallsMs: 800 // delay 800ms giữa các mã để tránh nghẽn
+            }
+          );
+
+          // Cập nhật trạng thái
+          state.success_list.push(taskKey);
+          state.extracted_list = state.success_list; // Tương thích ngược
+          saveState(stateFile, state);
+          successSet.add(taskKey);
+          successCount++;
+        } catch (err) {
+          console.error(`[EXTRACT-RUN] ✗ Lỗi trích xuất AI cho ${sym}: ${err.message}`);
+        }
+      }
+
+      // Tránh nghẽn giữa các đợt lô lớn
+      if (b < batches.length - 1) {
+        console.log(`[BATCH] Nghỉ 3 giây trước lô tiếp theo...`);
+        await new Promise(r => setTimeout(r, 3000));
       }
     }
     console.log(`[EXTRACT-RUN] ✓ Đã bóc tách AI thành công cho ${successCount}/${targetSymbols.length} mã.`);
@@ -305,7 +379,136 @@ export async function runVN30Pipeline(options = {}) {
     }
   }
 
-  console.log(`\n[CONDUCTOR-VN30] Pipeline VN30 hoàn tất trọn vẹn.`);
+  console.log(`\n[CONDUCTOR-VN30] Pipeline hoàn tất trọn vẹn.`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHÂN NGÀNH TỰ ĐỘNG, CHIA LÔ & ĐIỀU TIẾT NHỊP ĐỘ (TDD LOGIC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tự động phân loại ngành của mã chứng khoán dựa trên thông tin tổng quan doanh nghiệp.
+ * Cực kỳ bền bỉ với fallback thông minh.
+ */
+export async function autoClassifySector(symbol) {
+  const sym = symbol.toUpperCase();
+  const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
+  const overviewPath = path.join(rawDir, sym, '2025', 'overview.json');
+
+  // Rổ fallback cứng bền bỉ cho các ngân hàng và bất động sản lớn
+  const BANKING_FALLBACK = [
+    'ACB', 'BID', 'CTG', 'HDB', 'LPB', 'MBB', 'SHB', 'SSB', 'STB', 'TCB', 'TPB', 'VCB', 'VPB', 'VIB', 'MSB', 'BAB', 'ABB', 'NAB', 'OCB', 'BVB', 'KLB', 'SGB', 'PGB'
+  ];
+  const REAL_ESTATE_FALLBACK = [
+    'VHM', 'VIC', 'VRE', 'KDH', 'NLG', 'DXG', 'PDR', 'DIG', 'CEO', 'DXS', 'CRE', 'KHG', 'TCH', 'HDC', 'HDG', 'SJS', 'SZC', 'IJC', 'BCM', 'KBC', 'LHG', 'D2D', 'NDN'
+  ];
+
+  if (fs.existsSync(overviewPath)) {
+    try {
+      const content = fs.readFileSync(overviewPath, 'utf8');
+      const data = JSON.parse(content);
+      // vnstock lưu overview dạng DataFrame -> khi lưu sang JSON thường là 1 Array chứa 1 Object
+      const profile = Array.isArray(data) ? data[0] : data;
+
+      if (profile) {
+        // Lấy tất cả giá trị trường văn bản có thể mô tả ngành
+        const fieldsToSearch = [
+          profile.icb_name1,
+          profile.icb_name2,
+          profile.icb_name3,
+          profile.icb_name4,
+          profile.business_model,
+          profile.company_profile
+        ].filter(Boolean).map(s => s.toString().toLowerCase());
+
+        const combinedText = fieldsToSearch.join(' | ');
+
+        // Kiểm tra Banking trước
+        if (
+          combinedText.includes('ngân hàng') || 
+          combinedText.includes('tín dụng') || 
+          combinedText.includes('banking') || 
+          combinedText.includes('banks')
+        ) {
+          return 'banking';
+        }
+
+        // Kiểm tra Bất động sản
+        if (
+          combinedText.includes('bất động sản') || 
+          combinedText.includes('địa ốc') || 
+          combinedText.includes('nhà ở') || 
+          combinedText.includes('real estate') ||
+          combinedText.includes('phát triển đô thị')
+        ) {
+          return 'real_estate';
+        }
+      }
+    } catch (e) {
+      console.warn(`[WARN] Lỗi khi parse overview.json cho ${sym}: ${e.message}. Sử dụng danh sách cứng.`);
+    }
+  }
+
+  // Fallback dựa trên danh sách cứng nếu không có file hoặc parse lỗi
+  if (BANKING_FALLBACK.includes(sym)) {
+    return 'banking';
+  }
+  if (REAL_ESTATE_FALLBACK.includes(sym)) {
+    return 'real_estate';
+  }
+
+  return 'generic';
+}
+
+/**
+ * Chia danh sách mã chứng khoán thành các lô nhỏ (batches) có kích thước batchSize.
+ */
+export function createBatches(symbols, batchSize) {
+  if (!Array.isArray(symbols) || symbols.length === 0) return [];
+  const size = parseInt(batchSize, 10) || 50;
+  const batches = [];
+  for (let i = 0; i < symbols.length; i += size) {
+    batches.push(symbols.slice(i, i + size));
+  }
+  return batches;
+}
+
+/**
+ * Thực hiện một tác vụ bất đồng bộ (ví dụ gọi AI) với Rate Limiter và Exponential Backoff Retry.
+ */
+export async function executeWithRateLimit(taskFn, symbol, options = {}) {
+  const maxRetries = options.maxRetries ?? 3;
+  const initialDelayMs = options.initialDelayMs ?? 1000;
+  const delayBetweenCallsMs = options.delayBetweenCallsMs ?? 500;
+
+  // 1. Trì hoãn cơ bản giữa mỗi cuộc gọi để bảo vệ nhịp độ
+  if (delayBetweenCallsMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, delayBetweenCallsMs));
+  }
+
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await taskFn(symbol);
+    } catch (error) {
+      attempt++;
+      const isRateLimitError = 
+        error.status === 429 || 
+        error.message?.includes('429') || 
+        error.message?.toLowerCase().includes('too many requests') || 
+        error.message?.toLowerCase().includes('rate limit');
+
+      if (isRateLimitError && attempt < maxRetries) {
+        // Tính toán độ trễ tăng dần (Exponential Backoff): delay * 2^attempt
+        const backoffDelay = initialDelayMs * Math.pow(2, attempt);
+        console.warn(`[RATE-LIMIT] Gặp lỗi 429 cho ${symbol}. Đang chờ ${backoffDelay}ms để thử lại lần ${attempt}/${maxRetries}...`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      } else {
+        // Nếu không phải lỗi Rate Limit hoặc đã hết lượt thử lại, ném lỗi ra ngoài
+        throw error;
+      }
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,6 +521,7 @@ if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs'))
   const gatherOnly = args.includes('--gather-only');
   const extractOnly = args.includes('--extract-only');
   const syncOnly = args.includes('--sync-only');
+  const all = args.includes('--all');
 
   // Parse --limit=N
   let limit = Infinity;
@@ -334,14 +538,15 @@ if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs'))
   }
 
   async function main() {
-    if (isVN30) {
-      // Chạy luồng VN30 mới
+    if (isVN30 || all) {
+      // Chạy luồng VN30 hoặc diện rộng toàn sàn
       await runVN30Pipeline({
         gatherOnly,
         extractOnly,
         syncOnly,
         symbols,
-        limit
+        limit,
+        all
       });
     } else {
       // Chạy luồng OCR truyền thống cũ

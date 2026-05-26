@@ -193,10 +193,34 @@ def gather_symbol_data(symbol, year, output_dir, force=False):
     else:
         print(f"[GATHER] - Bỏ qua news (đã tồn tại).")
 
+    # 4. Tải Thông tin tổng quan doanh nghiệp (overview) để phân loại ngành
+    overview_file = os.path.join(target_dir, "overview.json")
+    if not os.path.exists(overview_file) or force:
+        try:
+            print(f"[GATHER] -> Tải thông tin tổng quan (overview) cho {symbol}...")
+            comp = Company(source="vci", symbol=symbol)
+            df_overview = comp.overview()
+            save_dataframe_to_json(df_overview, overview_file)
+            print(f"[GATHER] ✓ Đã lưu overview.")
+        except Exception as e:
+            print(f"[WARN] Không tải được overview qua VCI cho {symbol}: {e}")
+            try:
+                print(f"[GATHER] -> Thử lại với KBS...")
+                comp = Company(source="kbs", symbol=symbol)
+                df_overview = comp.overview()
+                save_dataframe_to_json(df_overview, overview_file)
+                print(f"[GATHER] ✓ Đã lưu overview bằng KBS.")
+            except Exception as ex:
+                print(f"[ERROR] Thất bại hoàn toàn tải overview cho {symbol}: {ex}")
+                save_dataframe_to_json(None, overview_file)
+    else:
+        print(f"[GATHER] - Bỏ qua overview (đã tồn tại).")
+
 def main():
     parser = argparse.ArgumentParser(description="Tải dữ liệu thô tài chính & tin tức từ vnstock cho rổ VN30.")
     parser.add_argument("--symbols", type=str, help="Danh sách mã cổ phiếu phân tách bằng dấu phẩy (VD: HPG,TCB,VHM)")
     parser.add_argument("--vn30", action="store_true", help="Tải cho toàn bộ rổ VN30")
+    parser.add_argument("--all", action="store_true", help="Tải cho toàn bộ cổ phiếu trên thị trường")
     parser.add_argument("--year", type=int, default=2025, help="Năm dữ liệu cần tải (mặc định: 2025)")
     parser.add_argument("--force", action="store_true", help="Ghi đè cache cũ")
     parser.add_argument("--output-dir", type=str, default="stock_data/vnstock_raw", help="Thư mục lưu dữ liệu thô")
@@ -210,8 +234,26 @@ def main():
         symbols = [s.strip().upper() for s in args.symbols.split(',') if s.strip()]
     elif args.vn30:
         symbols = get_vn30_symbols()
+    elif args.all:
+        try:
+            print("[GATHER] Lấy danh sách toàn bộ mã chứng khoán trên sàn...")
+            listing = Listing(source="kbs")
+            all_df = listing.all_symbols()
+            if isinstance(all_df, pd.DataFrame) and not all_df.empty:
+                # Tìm cột chứa ký hiệu symbol
+                symbol_col = 'symbol' if 'symbol' in all_df.columns else all_df.columns[0]
+                all_syms = all_df[symbol_col].astype(str).tolist()
+            else:
+                all_syms = list(all_df)
+            
+            # Chỉ lấy các mã cổ phiếu chuẩn (3 ký tự chữ viết hoa)
+            symbols = [s.upper() for s in all_syms if len(s) == 3 and s.isalpha()]
+            print(f"[GATHER] Lấy thành công {len(symbols)} mã cổ phiếu chuẩn.")
+        except Exception as e:
+            print(f"[ERROR] Không thể lấy toàn bộ danh sách mã từ Listing: {e}")
+            sys.exit(1)
     else:
-        print("[ERROR] Bạn phải chỉ định --symbols hoặc --vn30 để chạy.")
+        print("[ERROR] Bạn phải chỉ định --symbols, --vn30 hoặc --all để chạy.")
         sys.exit(1)
 
     print(f"[GATHER] Bắt đầu tải dữ liệu thô cho {len(symbols)} mã cổ phiếu...")
