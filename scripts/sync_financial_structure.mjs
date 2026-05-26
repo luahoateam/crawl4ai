@@ -1,16 +1,11 @@
-#!/usr/bin/env zx
+#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { $ } from 'zx';
 import { formatExtraction } from './formatter.mjs';
 import { syncBusinessModel } from './d1_sync.mjs';
-
-// Đảm bảo zx sử dụng cmd trên Windows để tránh lỗi WSL dịch ổ ảo và lỗi prefix bash
-if (process.platform === 'win32') {
-  $.shell = 'cmd.exe';
-  $.prefix = '';
-}
+import { runExtract } from './extract_financial_structure.mjs';
+import { runSyncExtracted } from './sync_extracted.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -222,16 +217,43 @@ export async function runSync(options = {}) {
   };
 }
 
-// Nếu script được thực thi trực tiếp bằng zx/node
+// ─────────────────────────────────────────────────────────────────────────────
+// CLI Entry Point
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Nếu script được thực thi trực tiếp bằng node
 if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs')) {
-  // Lấy tham số CLI limit nếu có (ví dụ: --limit=10)
+  const args = process.argv.slice(2);
+  const extractOnly = args.includes('--extract-only');
+  const syncOnly = args.includes('--sync-only');
+
+  // Parse --limit=N
   let limit = Infinity;
-  const limitArg = process.argv.find(arg => arg.startsWith('--limit='));
+  const limitArg = args.find(arg => arg.startsWith('--limit='));
   if (limitArg) {
     limit = parseInt(limitArg.split('=')[1], 10) || Infinity;
   }
-  
-  runSync({ limit }).catch(error => {
+
+  async function main() {
+    if (extractOnly) {
+      // Chỉ chạy bước 1: Extract
+      console.log('[CONDUCTOR] Chế độ: Extract-only');
+      await runExtract({ limit });
+
+    } else if (syncOnly) {
+      // Chỉ chạy bước 2: Sync
+      console.log('[CONDUCTOR] Chế độ: Sync-only');
+      await runSyncExtracted({ limit });
+
+    } else {
+      // Mặc định: chạy cả 2 bước tuần tự
+      console.log('[CONDUCTOR] Chế độ: Full pipeline (Extract → Sync)');
+      await runExtract({ limit });
+      await runSyncExtracted({ limit });
+    }
+  }
+
+  main().catch(error => {
     console.error(`[FATAL] Conductor script failed: ${error.message}`);
     process.exit(1);
   });

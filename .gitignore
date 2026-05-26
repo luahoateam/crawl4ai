@@ -291,6 +291,8 @@ scripts/*
 !scripts/formatter.mjs
 !scripts/d1_sync.mjs
 !scripts/sync_financial_structure.mjs
+!scripts/extract_financial_structure.mjs
+!scripts/sync_extracted.mjs
 
 
 # Databse files
