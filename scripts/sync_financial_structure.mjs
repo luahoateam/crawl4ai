@@ -308,21 +308,25 @@ export async function runVN30Pipeline(options = {}) {
     const pendingSymbols = targetSymbols.filter(sym => !successSet.has(`${sym}:${year}`));
     console.log(`[EXTRACT-RUN] Tổng số: ${targetSymbols.length} mã. Đã hoàn thành trước: ${targetSymbols.length - pendingSymbols.length} mã. Cần chạy tiếp: ${pendingSymbols.length} mã.`);
 
-    // Chia lô (Batching) để xử lý AI diện rộng an toàn (cỡ lô 30)
-    const batches = createBatches(pendingSymbols, 30);
-    console.log(`[EXTRACT-RUN] Đã chia thành ${batches.length} lô để điều tiết AI.`);
+    // Chia lô (Batching) dựa trên độ song song (concurrency)
+    const concurrency = options.concurrency || 5;
+    const batches = createBatches(pendingSymbols, concurrency);
+    console.log(`[EXTRACT-RUN] Đã chia thành ${batches.length} lô để điều tiết AI (Độ song song: ${concurrency}).`);
 
     let successCount = targetSymbols.length - pendingSymbols.length;
 
     for (let b = 0; b < batches.length; b++) {
       const batch = batches[b];
-      console.log(`\n[BATCH][${b + 1}/${batches.length}] Đang chạy lô ${b + 1} chứa ${batch.length} mã...`);
+      console.log(`\n[BATCH][${b + 1}/${batches.length}] Đang chạy song song lô ${b + 1} chứa ${batch.length} mã: ${batch.join(', ')}...`);
 
-      for (const sym of batch) {
+      // Sử dụng Promise.all để bóc tách song song các mã trong lô
+      await Promise.all(batch.map(async (sym, index) => {
+        // Trì hoãn phân bổ (stagger) để tránh gửi nhiều request cùng lúc ở một phần nghìn giây
+        await new Promise(r => setTimeout(r, index * 250));
+        
         try {
           const taskKey = `${sym}:${year}`;
           
-          // Sử dụng executeWithRateLimit để bọc cuộc gọi runAIExtraction
           await executeWithRateLimit(
             async () => {
               return await runAIExtraction({
@@ -336,7 +340,7 @@ export async function runVN30Pipeline(options = {}) {
             {
               maxRetries: 3,
               initialDelayMs: 2000,
-              delayBetweenCallsMs: 800 // delay 800ms giữa các mã để tránh nghẽn
+              delayBetweenCallsMs: 200 // độ trễ nhỏ sau stagger
             }
           );
 
@@ -349,12 +353,12 @@ export async function runVN30Pipeline(options = {}) {
         } catch (err) {
           console.error(`[EXTRACT-RUN] ✗ Lỗi trích xuất AI cho ${sym}: ${err.message}`);
         }
-      }
+      }));
 
       // Tránh nghẽn giữa các đợt lô lớn
       if (b < batches.length - 1) {
-        console.log(`[BATCH] Nghỉ 3 giây trước lô tiếp theo...`);
-        await new Promise(r => setTimeout(r, 3000));
+        console.log(`[BATCH] Nghỉ 1.5 giây trước lô tiếp theo...`);
+        await new Promise(r => setTimeout(r, 1500));
       }
     }
     console.log(`[EXTRACT-RUN] ✓ Đã bóc tách AI thành công cho ${successCount}/${targetSymbols.length} mã.`);
@@ -403,16 +407,44 @@ export async function autoClassifySector(symbol) {
     'VHM', 'VIC', 'VRE', 'KDH', 'NLG', 'DXG', 'PDR', 'DIG', 'CEO', 'DXS', 'CRE', 'KHG', 'TCH', 'HDC', 'HDG', 'SJS', 'SZC', 'IJC', 'BCM', 'KBC', 'LHG', 'D2D', 'NDN'
   ];
 
+  // Fallback dựa trên danh sách cứng trước để tối ưu tốc độ và độ chính xác cho VN30
+  if (BANKING_FALLBACK.includes(sym)) {
+    return 'banking';
+  }
+  if (REAL_ESTATE_FALLBACK.includes(sym)) {
+    return 'real_estate';
+  }
+
   if (fs.existsSync(overviewPath)) {
     try {
       const content = fs.readFileSync(overviewPath, 'utf8');
       const data = JSON.parse(content);
-      // vnstock lưu overview dạng DataFrame -> khi lưu sang JSON thường là 1 Array chứa 1 Object
       const profile = Array.isArray(data) ? data[0] : data;
 
       if (profile) {
-        // Lấy tất cả giá trị trường văn bản có thể mô tả ngành
-        const fieldsToSearch = [
+        // 1. Phân loại BANKING: Chỉ quét trên company_type và các trường phân ngành chính thống (nếu có),
+        // TUYỆT ĐỐI KHÔNG quét trên business_model hay company_profile để tránh nhận diện sai các công ty dịch vụ công nghệ (như FPT).
+        const bankingFields = [
+          profile.company_type,
+          profile.icb_name1,
+          profile.icb_name2,
+          profile.icb_name3,
+          profile.icb_name4
+        ].filter(Boolean).map(s => s.toString().toLowerCase());
+
+        const bankingText = bankingFields.join(' | ');
+        if (
+          bankingText.includes('ngân hàng') || 
+          bankingText.includes('tín dụng') || 
+          bankingText.includes('banking') || 
+          bankingText.includes('banks')
+        ) {
+          return 'banking';
+        }
+
+        // 2. Phân loại REAL ESTATE: Có thể quét rộng hơn trên business_model và company_profile
+        const reFields = [
+          profile.company_type,
           profile.icb_name1,
           profile.icb_name2,
           profile.icb_name3,
@@ -421,25 +453,13 @@ export async function autoClassifySector(symbol) {
           profile.company_profile
         ].filter(Boolean).map(s => s.toString().toLowerCase());
 
-        const combinedText = fieldsToSearch.join(' | ');
-
-        // Kiểm tra Banking trước
+        const reText = reFields.join(' | ');
         if (
-          combinedText.includes('ngân hàng') || 
-          combinedText.includes('tín dụng') || 
-          combinedText.includes('banking') || 
-          combinedText.includes('banks')
-        ) {
-          return 'banking';
-        }
-
-        // Kiểm tra Bất động sản
-        if (
-          combinedText.includes('bất động sản') || 
-          combinedText.includes('địa ốc') || 
-          combinedText.includes('nhà ở') || 
-          combinedText.includes('real estate') ||
-          combinedText.includes('phát triển đô thị')
+          reText.includes('bất động sản') || 
+          reText.includes('địa ốc') || 
+          reText.includes('nhà ở') || 
+          reText.includes('real estate') ||
+          reText.includes('phát triển đô thị')
         ) {
           return 'real_estate';
         }
@@ -447,14 +467,6 @@ export async function autoClassifySector(symbol) {
     } catch (e) {
       console.warn(`[WARN] Lỗi khi parse overview.json cho ${sym}: ${e.message}. Sử dụng danh sách cứng.`);
     }
-  }
-
-  // Fallback dựa trên danh sách cứng nếu không có file hoặc parse lỗi
-  if (BANKING_FALLBACK.includes(sym)) {
-    return 'banking';
-  }
-  if (REAL_ESTATE_FALLBACK.includes(sym)) {
-    return 'real_estate';
   }
 
   return 'generic';
@@ -530,6 +542,13 @@ if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs'))
     limit = parseInt(limitArg.split('=')[1], 10) || Infinity;
   }
 
+  // Parse --concurrency=N
+  let concurrency = 5;
+  const concurrencyArg = args.find(arg => arg.startsWith('--concurrency='));
+  if (concurrencyArg) {
+    concurrency = parseInt(concurrencyArg.split('=')[1], 10) || 5;
+  }
+
   // Parse --symbols=HPG,TCB...
   let symbols = null;
   const symbolsArg = args.find(arg => arg.startsWith('--symbols='));
@@ -546,7 +565,8 @@ if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs'))
         syncOnly,
         symbols,
         limit,
-        all
+        all,
+        concurrency
       });
     } else {
       // Chạy luồng OCR truyền thống cũ

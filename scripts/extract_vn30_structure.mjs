@@ -28,11 +28,6 @@ const REAL_ESTATE_SYMBOLS = new Set([
   'VHM', 'VIC', 'VRE', 'BCM', 'KDH', 'PDR'
 ]);
 
-/**
- * Xác định phân ngành của symbol dựa trên overview.json hoặc danh sách fallback lớn
- * @param {string} symbol
- * @returns {"banking" | "real_estate" | "generic"}
- */
 export function getSectorOfSymbol(symbol) {
   const sym = symbol.toUpperCase();
   const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
@@ -46,6 +41,9 @@ export function getSectorOfSymbol(symbol) {
     'VHM', 'VIC', 'VRE', 'KDH', 'NLG', 'DXG', 'PDR', 'DIG', 'CEO', 'DXS', 'CRE', 'KHG', 'TCH', 'HDC', 'HDG', 'SJS', 'SZC', 'IJC', 'BCM', 'KBC', 'LHG', 'D2D', 'NDN'
   ];
 
+  if (BANKING_FALLBACK.includes(sym)) return 'banking';
+  if (REAL_ESTATE_FALLBACK.includes(sym)) return 'real_estate';
+
   if (fs.existsSync(overviewPath)) {
     try {
       const content = fs.readFileSync(overviewPath, 'utf8');
@@ -53,7 +51,28 @@ export function getSectorOfSymbol(symbol) {
       const profile = Array.isArray(data) ? data[0] : data;
 
       if (profile) {
-        const fieldsToSearch = [
+        // 1. Phân loại BANKING
+        const bankingFields = [
+          profile.company_type,
+          profile.icb_name1,
+          profile.icb_name2,
+          profile.icb_name3,
+          profile.icb_name4
+        ].filter(Boolean).map(s => s.toString().toLowerCase());
+
+        const bankingText = bankingFields.join(' | ');
+        if (
+          bankingText.includes('ngân hàng') || 
+          bankingText.includes('tín dụng') || 
+          bankingText.includes('banking') || 
+          bankingText.includes('banks')
+        ) {
+          return 'banking';
+        }
+
+        // 2. Phân loại REAL ESTATE
+        const reFields = [
+          profile.company_type,
           profile.icb_name1,
           profile.icb_name2,
           profile.icb_name3,
@@ -62,23 +81,13 @@ export function getSectorOfSymbol(symbol) {
           profile.company_profile
         ].filter(Boolean).map(s => s.toString().toLowerCase());
 
-        const combinedText = fieldsToSearch.join(' | ');
-
+        const reText = reFields.join(' | ');
         if (
-          combinedText.includes('ngân hàng') || 
-          combinedText.includes('tín dụng') || 
-          combinedText.includes('banking') || 
-          combinedText.includes('banks')
-        ) {
-          return 'banking';
-        }
-
-        if (
-          combinedText.includes('bất động sản') || 
-          combinedText.includes('địa ốc') || 
-          combinedText.includes('nhà ở') || 
-          combinedText.includes('real estate') ||
-          combinedText.includes('phát triển đô thị')
+          reText.includes('bất động sản') || 
+          reText.includes('địa ốc') || 
+          reText.includes('nhà ở') || 
+          reText.includes('real estate') ||
+          reText.includes('phát triển đô thị')
         ) {
           return 'real_estate';
         }
@@ -88,8 +97,6 @@ export function getSectorOfSymbol(symbol) {
     }
   }
 
-  if (BANKING_FALLBACK.includes(sym)) return 'banking';
-  if (REAL_ESTATE_FALLBACK.includes(sym)) return 'real_estate';
   return 'generic';
 }
 
