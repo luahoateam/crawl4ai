@@ -54,27 +54,30 @@ const OPERATIONAL_SCHEMAS = {
       npl: { type: "string", description: "Tỷ lệ nợ xấu NPL thực tế năm 2025, ví dụ: 1.1%" },
       llr: { type: "string", description: "Tỷ lệ bao phủ nợ xấu LLR thực tế năm 2025, ví dụ: 135%" },
       credit_growth: { type: "string", description: "Tăng trưởng tín dụng thực tế năm 2025, ví dụ: 18.2%" },
+      key_monitor_points_2026: { type: "string", description: "Các thông tin đáng chú ý và rủi ro/cơ hội lớn liên quan đến mô hình kinh doanh cần theo dõi trong năm 2026 (nợ xấu, trích lập dự phòng, room tín dụng, số hóa...)" },
       others: { type: "string", description: "Các mục tiêu năm 2026 hoặc kế hoạch chiến lược tương lai" }
     },
-    required: ["nim", "casa", "npl", "llr", "credit_growth", "others"]
+    required: ["nim", "casa", "npl", "llr", "credit_growth", "key_monitor_points_2026", "others"]
   },
   real_estate: {
     type: "object",
     properties: {
       inventory_status: { type: "string", description: "Giá trị hàng tồn kho dở dang tại ngày 31/12/2025 và dự án đang triển khai" },
       projects_progress: { type: "string", description: "Tiến độ bàn giao hoặc mở bán các dự án chính trong năm 2025 và kế hoạch mở bán năm 2026" },
+      key_monitor_points_2026: { type: "string", description: "Các dự án dang dở lớn nhất, hàng tồn kho lớn đang ngốn vốn có ảnh hưởng trọng yếu tới lợi nhuận và dòng tiền của công ty trong năm 2026 (ví dụ Vinhomes Cổ Loa, Vũ Yên...)" },
       others: { type: "string", description: "Mục tiêu doanh thu/lợi nhuận 2026 hoặc kế hoạch mở rộng quỹ đất" }
     },
-    required: ["inventory_status", "projects_progress", "others"]
+    required: ["inventory_status", "projects_progress", "key_monitor_points_2026", "others"]
   },
   generic: {
     type: "object",
     properties: {
       physical_volume: { type: "string", description: "Sản lượng vật lý sản xuất hoặc tiêu thụ thực tế năm 2025 (ví dụ: 8.5 triệu tấn thép, 1000 cửa hàng)" },
       market_share: { type: "string", description: "Thị phần phần trăm % của các sản phẩm chủ đạo thực tế năm 2025" },
+      key_monitor_points_2026: { type: "string", description: "Các dự án đầu tư nhà máy mới, dự án dang dở lớn ảnh hưởng lớn lên mô hình kinh doanh và năng lực tạo ra tiền của doanh nghiệp trong năm 2026 (ví dụ Dung Quất 2 của HPG...)" },
       others: { type: "string", description: "Cập nhật tiến độ dự án lớn (ví dụ: Dung Quất 2 chạy thử Q1/2026) hoặc mục tiêu kinh doanh năm 2026" }
     },
-    required: ["physical_volume", "market_share", "others"]
+    required: ["physical_volume", "market_share", "key_monitor_points_2026", "others"]
   }
 };
 

@@ -56,6 +56,10 @@ export function formatToMarkdown(data) {
   let profitLine = `2025: ${profit_struct || 'Đang cập nhật'}`;
   let othersLine = `2025: ${others || 'Đang cập nhật'}`;
 
+  if (data.key_monitor_points_2026) {
+    othersLine += `\n   * 📌 Điểm đáng chú ý theo dõi năm 2026: ${data.key_monitor_points_2026}`;
+  }
+
   if (sector === 'banking') {
     // Nhóm Ngân hàng: NIM, CASA, NPL, LLR, Credit Growth
     const nimStr = data.nim ? `NIM: ${data.nim}` : null;
