@@ -110,3 +110,22 @@ def extract_financial_structure(text: str) -> dict:
             "revenue_struct": f"Lỗi trích xuất cơ cấu doanh thu: {str(e)}",
             "profit_struct": f"Lỗi trích xuất cơ cấu lợi nhuận: {str(e)}"
         }
+
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description="Xiaomi MiMo BCTC Structure Extraction CLI")
+    parser.add_argument("--file", required=True, help="Đường dẫn đến file chứa văn bản OCR BCTC")
+    parser.add_argument("--out", required=True, help="Đường dẫn file JSON đầu ra")
+    
+    args = parser.parse_args(argv)
+    
+    with open(args.file, "r", encoding="utf-8") as f:
+        text = f.read()
+        
+    result = extract_financial_structure(text)
+    
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+if __name__ == "__main__":
+    main()

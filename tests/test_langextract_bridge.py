@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 import json
 
 def test_import_bridge():
@@ -37,11 +37,36 @@ def test_extract_financial_structure_mock():
         
         # Verify kết quả
         assert result == expected_extracted
-        assert "revenue_struct" in result
-        assert "profit_struct" in result
-        assert result["revenue_struct"] == expected_extracted["revenue_struct"]
-        assert result["profit_struct"] == expected_extracted["profit_struct"]
         
         # Verify mock được gọi đúng cách
         mock_get_model.assert_called_once()
         mock_model_instance.infer.assert_called_once()
+
+def test_cli_execution_mock():
+    """Kiểm tra việc thực thi qua CLI sử dụng mock argv và file system."""
+    from scripts.langextract_bridge import main
+    
+    expected_result = {
+        "revenue_struct": "Doanh thu mảng nhựa đạt 80 tỷ",
+        "profit_struct": "Lợi nhuận mảng xuất khẩu đạt 15 tỷ"
+    }
+    
+    # Mock hàm extract_financial_structure và open
+    # Chúng ta sử dụng mock_open để không tương tác thật với ổ đĩa
+    m_open = mock_open(read_data="Văn bản BCTC mẫu")
+    with patch("scripts.langextract_bridge.extract_financial_structure") as mock_extract, \
+         patch("builtins.open", m_open):
+        
+        mock_extract.return_value = expected_result
+        
+        # Chạy hàm main với các tham số argv giả lập
+        main(["--file", "input.txt", "--out", "output.json"])
+        
+        # Xác nhận logic trích xuất được gọi đúng tham số
+        mock_extract.assert_called_once_with("Văn bản BCTC mẫu")
+        
+        # Xác nhận tệp input được mở để đọc
+        m_open.assert_any_call("input.txt", "r", encoding="utf-8")
+        
+        # Xác nhận tệp output được mở để ghi kết quả JSON
+        m_open.assert_any_call("output.json", "w", encoding="utf-8")
