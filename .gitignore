@@ -306,3 +306,8 @@ HANDOFF-*.md
 # Beads / Dolt files (added by bd init)
 .dolt/
 .beads-credential-key
+
+# Ignore beads tool codebase folder
+beads/
+/beads
+
