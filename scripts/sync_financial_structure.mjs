@@ -1,11 +1,25 @@
 #!/usr/bin/env node
+/**
+ * sync_financial_structure.mjs
+ *
+ * Conductor CLI - Nhạc trưởng điều khiển toàn bộ pipeline.
+ * Tích hợp cả 2 luồng:
+ * 1. Luồng truyền thống: Quét OCR BCTC thô ở local -> Gọi Python bridge -> Đồng bộ D1.
+ * 2. Luồng VN30 2025 mới: Thu thập thô vnstock -> Dual-Run AI Extractor -> Đồng bộ ghép nối tiếp D1.
+ */
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
+
+// Import các module của luồng cũ
 import { formatExtraction } from './formatter.mjs';
 import { syncBusinessModel } from './d1_sync.mjs';
-import { runExtract } from './extract_financial_structure.mjs';
-import { runSyncExtracted } from './sync_extracted.mjs';
+
+// Import các module của luồng VN30 mới
+import { runAIExtraction, getSectorOfSymbol } from './extract_vn30_structure.mjs';
+import { runSyncVN30 } from './sync_vn30_extracted.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,25 +44,31 @@ function loadEnv() {
 
 loadEnv();
 
-/**
- * Đọc trạng thái đồng bộ từ tệp JSON
- */
+// Đường dẫn Python chính của user (đảm bảo tương thích nhị phân numpy 100%)
+const PYTHON_EXEC = process.env.PYTHON_EXEC || 'C:\\Users\\luaho\\.venv\\Scripts\\python.exe';
+
+const VN30_SYMBOLS = [
+  'ACB', 'BCM', 'BID', 'BVH', 'CTG', 'FPT', 'GAS', 'GVR', 'HDB', 'HPG',
+  'MBB', 'LPB', 'MSN', 'MWG', 'PLX', 'POW', 'SAB', 'SHB', 'SSB', 'SSI',
+  'STB', 'TCB', 'TPB', 'VCB', 'VJC', 'VHM', 'VIC', 'VNM', 'VPB', 'VRE'
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE MANAGEMENT (LUỒNG CŨ)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function loadState(stateFile) {
   if (!fs.existsSync(stateFile)) {
     return { success_list: [] };
   }
   try {
-    const content = fs.readFileSync(stateFile, 'utf8');
-    return JSON.parse(content);
+    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   } catch (error) {
     console.warn(`[WARN] Could not parse state file: ${error.message}. Starting fresh.`);
     return { success_list: [] };
   }
 }
 
-/**
- * Ghi trạng thái đồng bộ xuống tệp JSON
- */
 export function saveState(stateFile, state) {
   const dir = path.dirname(stateFile);
   if (!fs.existsSync(dir)) {
@@ -57,17 +77,18 @@ export function saveState(stateFile, state) {
   fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
 }
 
-/**
- * Quét đệ quy thư mục ocr_data để lấy danh sách các file OCR BCTC
- * Hỗ trợ cả các cấu trúc sâu như: ocr_data/{symbol}/{year}/{subfolder}/{filename}.txt
- */
 export function scanOcrFiles(ocrDir) {
   const tasks = [];
-  if (!fs.existsSync(ocrDir)) {
-    return tasks;
-  }
+  if (!fs.existsSync(ocrDir)) return tasks;
 
-  const symbols = fs.readdirSync(ocrDir).filter(f => fs.statSync(path.join(ocrDir, f)).isDirectory());
+  const symbols = fs.readdirSync(ocrDir).filter(f => {
+    try {
+      return fs.statSync(path.join(ocrDir, f)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
   for (const symbol of symbols) {
     const symbolPath = path.join(ocrDir, symbol);
     
@@ -79,7 +100,6 @@ export function scanOcrFiles(ocrDir) {
         if (stat && stat.isDirectory()) {
           walk(fullPath);
         } else if (file.endsWith('.txt')) {
-          // Phân tích năm từ đường dẫn tương đối từ symbolPath
           const relative = path.relative(symbolPath, dir);
           const parts = relative.split(path.sep);
           let year = 0;
@@ -89,7 +109,6 @@ export function scanOcrFiles(ocrDir) {
               break;
             }
           }
-          
           if (year > 0) {
             tasks.push({
               symbol: symbol.toUpperCase(),
@@ -111,104 +130,79 @@ export function scanOcrFiles(ocrDir) {
   return tasks;
 }
 
-/**
- * Chạy quy trình đồng bộ hóa chính
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// LUỒNG CŨ: RUN SYNC (TRUYỀN THỐNG)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function runSync(options = {}) {
   const ocrDataDir = options.ocrDataDir || process.env.OCR_DATA_DIR || path.resolve(__dirname, '..', 'stock_data', 'ocr_data');
   const stateFile = options.stateFile || path.resolve(__dirname, '..', 'tmp', 'sync_state.json');
   const tempDir = options.tempDir || path.resolve(__dirname, '..', 'tmp', 'temp_sync');
-  const pythonExec = options.pythonExec || (process.platform === 'win32' 
-    ? path.resolve(__dirname, '..', '.venv-langextract', 'Scripts', 'python')
-    : path.resolve(__dirname, '..', '.venv-langextract', 'bin', 'python'));
+  const pythonExec = options.pythonExec || PYTHON_EXEC;
   const limit = options.limit || Infinity;
 
-  console.log(`[START] Initializing sync. OCR Dir: ${ocrDataDir}, State File: ${stateFile}`);
+  console.log(`[START-LEGACY] Initializing sync. OCR Dir: ${ocrDataDir}, State File: ${stateFile}`);
 
-  // 1. Lập thư mục tạm
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
 
-  // 2. Load trạng thái cũ
   const state = loadState(stateFile);
   const successSet = new Set(state.success_list);
 
-  // 3. Quét các file OCR ở local
   const allTasks = scanOcrFiles(ocrDataDir);
-  console.log(`[SCAN] Found ${allTasks.length} total OCR reports.`);
+  console.log(`[SCAN-LEGACY] Found ${allTasks.length} total OCR reports.`);
 
-  // 4. Lọc ra các task chưa làm
   const pendingTasks = allTasks.filter(task => !successSet.has(`${task.symbol}:${task.year}`));
-  console.log(`[SCAN] ${pendingTasks.length} reports are pending synchronization.`);
+  console.log(`[SCAN-LEGACY] ${pendingTasks.length} reports are pending synchronization.`);
 
   let successCount = 0;
   let failCount = 0;
   const targetTasks = pendingTasks.slice(0, limit);
 
-  // 5. Vòng lặp xử lý từng báo cáo
   for (const task of targetTasks) {
     const taskKey = `${task.symbol}:${task.year}`;
     console.log(`\n----------------------------------------`);
-    console.log(`[SYNC] Processing ${taskKey} - File: ${task.fileName}`);
+    console.log(`[SYNC-LEGACY] Processing ${taskKey} - File: ${task.fileName}`);
 
     const tempInPath = path.join(tempDir, `${task.symbol}_${task.year}_in.txt`);
     const tempOutPath = path.join(tempDir, `${task.symbol}_${task.year}_out.json`);
 
     try {
-      // a. Copy nội dung file OCR ra file tạm
       const content = fs.readFileSync(task.filePath, 'utf8');
       fs.writeFileSync(tempInPath, content, 'utf8');
 
-      // b. Gọi Python Bridge CLI trích xuất dữ liệu
       if (options.mockCommand) {
         await options.mockCommand(tempInPath, tempOutPath);
       } else {
-        // Sử dụng execSync thô để tránh lỗi quoting nháy đơn của zx trên Windows
-        const { execSync } = await import('node:child_process');
-        execSync(`"${pythonExec}" scripts/langextract_bridge.py --file "${tempInPath}" --out "${tempOutPath}"`);
+        const bridgeScript = path.resolve(__dirname, 'langextract_bridge.py');
+        execSync(`"${pythonExec}" "${bridgeScript}" --file "${tempInPath}" --out "${tempOutPath}"`);
       }
 
-      // c. Đọc kết quả JSON từ file tạm
       if (!fs.existsSync(tempOutPath)) {
         throw new Error('Python bridge did not generate output file.');
       }
       const rawResult = JSON.parse(fs.readFileSync(tempOutPath, 'utf8'));
-
-      // d. Chạy Formatter làm sạch dữ liệu
       const cleanData = formatExtraction(rawResult);
 
-      // e. Đồng bộ lên D1
       await syncBusinessModel(task.symbol, cleanData, options);
 
-      // f. Lưu trạng thái thành công
       state.success_list.push(taskKey);
       saveState(stateFile, state);
       successSet.add(taskKey);
       successCount++;
-      console.log(`[SUCCESS] Synced ${taskKey} successfully.`);
+      console.log(`[SUCCESS-LEGACY] Synced ${taskKey} successfully.`);
 
     } catch (error) {
       failCount++;
-      console.error(`[ERROR] Failed to process ${taskKey}: ${error.message}`);
+      console.error(`[ERROR-LEGACY] Failed to process ${taskKey}: ${error.message}`);
     } finally {
-      // dọn dẹp các tệp tạm thời
       try {
         if (fs.existsSync(tempInPath)) fs.unlinkSync(tempInPath);
         if (fs.existsSync(tempOutPath)) fs.unlinkSync(tempOutPath);
-      } catch (err) {
-        // bỏ qua lỗi dọn dẹp file tạm
-      }
+      } catch (err) { /* bỏ qua */ }
     }
   }
-
-  console.log(`\n========================================`);
-  console.log(`[SUMMARY] Sync Complete.`);
-  console.log(`  - Total processed: ${targetTasks.length}`);
-  console.log(`  - Success: ${successCount}`);
-  console.log(`  - Failed: ${failCount}`);
-  console.log(`  - Skipped (already synced): ${allTasks.length - pendingTasks.length}`);
-  console.log(`========================================`);
 
   return {
     processed: targetTasks.length,
@@ -218,12 +212,110 @@ export async function runSync(options = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLI Entry Point
+// LUỒNG VN30 MỚI (GATHER -> EXTRACT -> SYNC)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Nếu script được thực thi trực tiếp bằng node
+export async function runVN30Pipeline(options = {}) {
+  const {
+    gatherOnly = false,
+    extractOnly = false,
+    syncOnly = false,
+    symbols = null,
+    limit = Infinity,
+    year = 2025
+  } = options;
+
+  // Quyết định danh sách symbol
+  let targetSymbols = VN30_SYMBOLS;
+  if (symbols) {
+    targetSymbols = symbols.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  }
+
+  // Cắt bớt theo giới hạn limit
+  targetSymbols = targetSymbols.slice(0, limit);
+
+  const pythonExec = options.pythonExec || PYTHON_EXEC;
+
+  console.log(`[CONDUCTOR-VN30] Khởi động pipeline VN30 năm ${year} cho ${targetSymbols.length} mã.`);
+
+  const runAll = !gatherOnly && !extractOnly && !syncOnly;
+
+  // 1. BƯỚC GATHER (Tải dữ liệu thô)
+  if (gatherOnly || runAll) {
+    console.log(`\n========================================`);
+    console.log(`[CONDUCTOR-VN30] Phase 1/3: Gather (Tải thô)`);
+    console.log(`========================================`);
+    
+    const symbolsArg = targetSymbols.join(',');
+    const gatherScript = path.resolve(__dirname, 'gather_vnstock_raw.py');
+    const cmd = `"${pythonExec}" "${gatherScript}" --symbols "${symbolsArg}" --year ${year} --output-dir "stock_data/vnstock_raw"`;
+    
+    console.log(`[GATHER-RUN] Chạy command: ${cmd}`);
+    try {
+      execSync(cmd, { stdio: 'inherit' });
+      console.log(`[GATHER-RUN] ✓ Hoàn thành tải dữ liệu thô.`);
+    } catch (err) {
+      console.error(`[GATHER-RUN] ✗ Lỗi khi chạy script tải dữ liệu thô: ${err.message}`);
+      if (gatherOnly) throw err;
+    }
+  }
+
+  // 2. BƯỚC EXTRACT (Bóc tách AI Dual-Run)
+  if (extractOnly || runAll) {
+    console.log(`\n========================================`);
+    console.log(`[CONDUCTOR-VN30] Phase 2/3: Extract (AI Dual-Run)`);
+    console.log(`========================================`);
+
+    const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
+    const outputDir = path.resolve(__dirname, '..', 'stock_data', 'extracted_structure');
+
+    let successCount = 0;
+    for (const sym of targetSymbols) {
+      try {
+        await runAIExtraction({
+          symbol: sym,
+          year,
+          rawDir,
+          outputDir
+        });
+        successCount++;
+      } catch (err) {
+        console.error(`[EXTRACT-RUN] ✗ Lỗi trích xuất AI cho ${sym}: ${err.message}`);
+      }
+    }
+    console.log(`[EXTRACT-RUN] ✓ Đã bóc tách AI thành công cho ${successCount}/${targetSymbols.length} mã.`);
+  }
+
+  // 3. BƯỚC SYNC (Đồng bộ ghép nối D1)
+  if (syncOnly || runAll) {
+    console.log(`\n========================================`);
+    console.log(`[CONDUCTOR-VN30] Phase 3/3: Sync (D1 Append-Sync)`);
+    console.log(`========================================`);
+
+    try {
+      const syncResult = await runSyncVN30({
+        limit,
+        apiKey: options.apiKey,
+        apiBaseUrl: options.apiBaseUrl
+      });
+      console.log(`[SYNC-RUN] ✓ Hoàn tất đồng bộ: Thành công ${syncResult.success}, Thất bại ${syncResult.failed}.`);
+    } catch (err) {
+      console.error(`[SYNC-RUN] ✗ Lỗi đồng bộ D1: ${err.message}`);
+      if (syncOnly) throw err;
+    }
+  }
+
+  console.log(`\n[CONDUCTOR-VN30] Pipeline VN30 hoàn tất trọn vẹn.`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLI ENTRY POINT
+// ─────────────────────────────────────────────────────────────────────────────
+
 if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs')) {
   const args = process.argv.slice(2);
+  const isVN30 = args.includes('--vn30');
+  const gatherOnly = args.includes('--gather-only');
   const extractOnly = args.includes('--extract-only');
   const syncOnly = args.includes('--sync-only');
 
@@ -234,22 +326,27 @@ if (process.argv[1] && process.argv[1].endsWith('sync_financial_structure.mjs'))
     limit = parseInt(limitArg.split('=')[1], 10) || Infinity;
   }
 
+  // Parse --symbols=HPG,TCB...
+  let symbols = null;
+  const symbolsArg = args.find(arg => arg.startsWith('--symbols='));
+  if (symbolsArg) {
+    symbols = symbolsArg.split('=')[1];
+  }
+
   async function main() {
-    if (extractOnly) {
-      // Chỉ chạy bước 1: Extract
-      console.log('[CONDUCTOR] Chế độ: Extract-only');
-      await runExtract({ limit });
-
-    } else if (syncOnly) {
-      // Chỉ chạy bước 2: Sync
-      console.log('[CONDUCTOR] Chế độ: Sync-only');
-      await runSyncExtracted({ limit });
-
+    if (isVN30) {
+      // Chạy luồng VN30 mới
+      await runVN30Pipeline({
+        gatherOnly,
+        extractOnly,
+        syncOnly,
+        symbols,
+        limit
+      });
     } else {
-      // Mặc định: chạy cả 2 bước tuần tự
-      console.log('[CONDUCTOR] Chế độ: Full pipeline (Extract → Sync)');
-      await runExtract({ limit });
-      await runSyncExtracted({ limit });
+      // Chạy luồng OCR truyền thống cũ
+      console.log('[CONDUCTOR] Chạy luồng OCR truyền thống...');
+      await runSync({ limit });
     }
   }
 

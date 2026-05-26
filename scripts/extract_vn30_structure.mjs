@@ -1,0 +1,257 @@
+#!/usr/bin/env node
+/**
+ * extract_vn30_structure.mjs
+ *
+ * Tự động phân ngành và chạy Dual-Run AI Extractor để bóc tách dữ liệu
+ * Business Model năm 2025 cho rổ VN30.
+ *
+ * Đầu vào: Thư mục stock_data/vnstock_raw/{SYMBOL}/2025/
+ * Đầu ra: stock_data/extracted_structure/{SYMBOL}/2025.json
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHÂN NGÀNH VN30
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BANKING_SYMBOLS = new Set([
+  'ACB', 'BID', 'CTG', 'HDB', 'MBB', 'LPB', 'SHB', 'SSB', 'STB', 'TCB', 'TPB', 'VCB', 'VPB'
+]);
+
+const REAL_ESTATE_SYMBOLS = new Set([
+  'VHM', 'VIC', 'VRE', 'BCM', 'KDH', 'PDR'
+]);
+
+/**
+ * Xác định phân ngành của symbol
+ * @param {string} symbol
+ * @returns {"banking" | "real_estate" | "generic"}
+ */
+export function getSectorOfSymbol(symbol) {
+  const sym = symbol.toUpperCase();
+  if (BANKING_SYMBOLS.has(sym)) return 'banking';
+  if (REAL_ESTATE_SYMBOLS.has(sym)) return 'real_estate';
+  return 'generic';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURATION & AI CALLS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// JSON Schema cho Run 2 (Operational Sweep) theo phân ngành
+const OPERATIONAL_SCHEMAS = {
+  banking: {
+    type: "object",
+    properties: {
+      nim: { type: "string", description: "Biên lãi thuần NIM thực tế năm 2025, ví dụ: 4.2%" },
+      casa: { type: "string", description: "Tỷ lệ tiền gửi không kỳ hạn CASA thực tế năm 2025, ví dụ: 40.5%" },
+      npl: { type: "string", description: "Tỷ lệ nợ xấu NPL thực tế năm 2025, ví dụ: 1.1%" },
+      llr: { type: "string", description: "Tỷ lệ bao phủ nợ xấu LLR thực tế năm 2025, ví dụ: 135%" },
+      credit_growth: { type: "string", description: "Tăng trưởng tín dụng thực tế năm 2025, ví dụ: 18.2%" },
+      others: { type: "string", description: "Các mục tiêu năm 2026 hoặc kế hoạch chiến lược tương lai" }
+    },
+    required: ["nim", "casa", "npl", "llr", "credit_growth", "others"]
+  },
+  real_estate: {
+    type: "object",
+    properties: {
+      inventory_status: { type: "string", description: "Giá trị hàng tồn kho dở dang tại ngày 31/12/2025 và dự án đang triển khai" },
+      projects_progress: { type: "string", description: "Tiến độ bàn giao hoặc mở bán các dự án chính trong năm 2025 và kế hoạch mở bán năm 2026" },
+      others: { type: "string", description: "Mục tiêu doanh thu/lợi nhuận 2026 hoặc kế hoạch mở rộng quỹ đất" }
+    },
+    required: ["inventory_status", "projects_progress", "others"]
+  },
+  generic: {
+    type: "object",
+    properties: {
+      physical_volume: { type: "string", description: "Sản lượng vật lý sản xuất hoặc tiêu thụ thực tế năm 2025 (ví dụ: 8.5 triệu tấn thép, 1000 cửa hàng)" },
+      market_share: { type: "string", description: "Thị phần phần trăm % của các sản phẩm chủ đạo thực tế năm 2025" },
+      others: { type: "string", description: "Cập nhật tiến độ dự án lớn (ví dụ: Dung Quất 2 chạy thử Q1/2026) hoặc mục tiêu kinh doanh năm 2026" }
+    },
+    required: ["physical_volume", "market_share", "others"]
+  }
+};
+
+/**
+ * Gọi API MiMo AI với cơ chế retry và response JSON
+ * @param {string} prompt
+ * @param {object} jsonSchema
+ * @returns {Promise<object>}
+ */
+async function callMiMoAI(prompt, jsonSchema) {
+  const apiKey = process.env.MIMO_API_KEY || 'tp-stqnsqsdo4lq2o3318io1krk50woxsw505t1rt5e56bmichv';
+  const apiBaseUrl = process.env.MIMO_API_BASE_URL || 'https://token-plan-sgp.xiaomimimo.com/v1';
+  const url = `${apiBaseUrl}/chat/completions`;
+
+  const payload = {
+    model: "xiaomi/mimo-v2.5-pro",
+    messages: [
+      {
+        role: "system",
+        content: `Bạn là một trợ lý phân tích tài chính cao cấp chuyên sâu về thị trường Việt Nam. 
+Nhiệm vụ của bạn là đọc dữ liệu thô tài chính/tin tức và bóc tách dữ liệu có cấu trúc chính xác theo JSON Schema được yêu cầu.
+Hãy trả về một đối tượng JSON hợp lệ duy nhất, tuyệt đối không thêm markdown chèn bên ngoài.`
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    response_format: { 
+      type: "json_object" 
+    }
+  };
+
+  let lastError = null;
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`MiMo AI HTTP ${response.status}: ${errText}`);
+      }
+
+      const resJson = await response.json();
+      const content = resJson.choices[0].message.content;
+      return JSON.parse(content);
+      
+    } catch (err) {
+      lastError = err;
+      console.warn(`[WARN] Lần thử ${attempt}/${maxRetries} thất bại khi gọi MiMo AI: ${err.message}`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+  }
+
+  throw new Error(`Không thể kết nối hoặc bóc tách dữ liệu qua MiMo AI sau ${maxRetries} lần thử. Lỗi: ${lastError?.message}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE DUAL-RUN EXTRACTOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Chạy trích xuất Dual-Run AI cho một mã cổ phiếu cụ thể
+ */
+export async function runAIExtraction(options = {}) {
+  const {
+    symbol,
+    year = 2025,
+    rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw'),
+    outputDir = path.resolve(__dirname, '..', 'stock_data', 'extracted_structure'),
+    aiClient = null // Cho phép truyền mock client khi viết unit test
+  } = options;
+
+  const sym = symbol.toUpperCase();
+  const sector = getSectorOfSymbol(sym);
+  const targetRawDir = path.join(rawDir, sym, year.toString());
+  
+  if (!fs.existsSync(targetRawDir)) {
+    throw new Error(`Không tìm thấy thư mục cache dữ liệu thô: ${targetRawDir}`);
+  }
+
+  // Đọc các file dữ liệu thô
+  const fhPath = path.join(targetRawDir, 'financial_health.json');
+  const planPath = path.join(targetRawDir, 'annual_plan.json');
+  const newsPath = path.join(targetRawDir, 'news.json');
+
+  const rawFH = fs.existsSync(fhPath) ? fs.readFileSync(fhPath, 'utf8') : '{}';
+  const rawPlan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : '{}';
+  const rawNews = fs.existsSync(newsPath) ? fs.readFileSync(newsPath, 'utf8') : '{}';
+
+  console.log(`[EXTRACT][${sym}] Bắt đầu bóc tách Dual-Run. Ngành: ${sector}`);
+
+  // RUN 1: Financial Sweep
+  let run1Result = { revenue_struct: '', profit_struct: '' };
+  const promptRun1 = `Dưới đây là dữ liệu Sức khỏe Tài chính và Báo cáo tài chính năm ${year} của doanh nghiệp ${sym}:
+${rawFH}
+
+Nhiệm vụ của bạn: Hãy phân tích báo cáo và bóc tách dữ liệu thành cơ cấu doanh thu & lợi nhuận của năm ${year}.
+Hãy trả về JSON chứa chính xác 2 trường sau:
+1. "revenue_struct": Chuỗi mô tả tỉ trọng cơ cấu doanh thu chi tiết các mảng của năm ${year} (ví dụ: "Thép xây dựng đóng góp 65% doanh thu, HRC đóng góp 25% doanh thu, còn lại là nông nghiệp và gia dụng").
+2. "profit_struct": Chuỗi mô tả tỉ trọng cơ cấu lợi nhuận gộp chi tiết các mảng tương ứng của năm ${year} (ví dụ: "Mảng thép đóng góp 92% lợi nhuận gộp, nông nghiệp đóng góp 5%, mảng khác 3%").
+Hãy viết câu chữ tiếng Việt tự nhiên, trực quan, chuyên nghiệp.`;
+
+  const run1Schema = {
+    type: "object",
+    properties: {
+      revenue_struct: { type: "string" },
+      profit_struct: { type: "string" }
+    },
+    required: ["revenue_struct", "profit_struct"]
+  };
+
+  try {
+    if (aiClient) {
+      run1Result = await aiClient(promptRun1, run1Schema);
+    } else {
+      run1Result = await callMiMoAI(promptRun1, run1Schema);
+    }
+    console.log(`[EXTRACT][${sym}] ✓ Run 1 (Financial Sweep) hoàn thành.`);
+  } catch (err) {
+    console.error(`[EXTRACT][${sym}] ✗ Run 1 thất bại: ${err.message}. Sử dụng fallback rỗng.`);
+  }
+
+  // RUN 2: Operational Sweep (Đặc thù phân ngành)
+  let run2Result = {};
+  const sectorSchema = OPERATIONAL_SCHEMAS[sector];
+
+  const promptRun2 = `Dưới đây là kế hoạch kinh doanh năm mới và tin tức hoạt động vận hành của doanh nghiệp ${sym} trong năm ${year}:
+Kế hoạch kinh doanh:
+${rawPlan}
+
+Tin tức hoạt động:
+${rawNews}
+
+Nhiệm vụ của bạn: Hãy đọc dữ liệu thô và bóc tách thông số đặc thù của phân ngành "${sector}" cho năm ${year} theo đúng JSON Schema sau:
+${JSON.stringify(sectorSchema, null, 2)}
+Lưu ý: Nếu một chỉ tiêu nào đó không có trong dữ liệu thô, hãy ghi "Không có thông tin chi tiết trong BCTC/Tin tức năm ${year}". Không được bịa số liệu. Hãy viết câu chữ tiếng Việt cực kỳ tự nhiên và chuyên nghiệp.`;
+
+  try {
+    if (aiClient) {
+      run2Result = await aiClient(promptRun2, sectorSchema);
+    } else {
+      run2Result = await callMiMoAI(promptRun2, sectorSchema);
+    }
+    console.log(`[EXTRACT][${sym}] ✓ Run 2 (Operational Sweep) hoàn thành.`);
+  } catch (err) {
+    console.error(`[EXTRACT][${sym}] ✗ Run 2 thất bại: ${err.message}. Sử dụng fallback rỗng.`);
+  }
+
+  // MERGE RESULTS
+  const unifiedData = {
+    symbol: sym,
+    year,
+    sector,
+    extractedAt: new Date().toISOString(),
+    revenue_struct: run1Result.revenue_struct || '',
+    profit_struct: run1Result.profit_struct || '',
+    ...run2Result
+  };
+
+  // Ghi tệp kết quả JSON
+  const symOutputDir = path.join(outputDir, sym);
+  fs.mkdirSync(symOutputDir, { recursive: true });
+  const resultPath = path.join(symOutputDir, `${year}.json`);
+  fs.writeFileSync(resultPath, JSON.stringify(unifiedData, null, 2), 'utf8');
+
+  console.log(`[EXTRACT][${sym}] ✓ Đã ghi Unified JSON cache: ${resultPath}`);
+  return unifiedData;
+}
