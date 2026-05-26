@@ -52,7 +52,11 @@ export function loadSyncState(stateFile) {
     return { synced_list: [] };
   }
   try {
-    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    if (!data.synced_list) {
+      data.synced_list = [];
+    }
+    return data;
   } catch {
     console.warn(`[WARN] Không parse được sync state file, bắt đầu từ đầu.`);
     return { synced_list: [] };
@@ -140,10 +144,10 @@ async function callSyncApi(symbol, data, opts) {
 
   const url = `${apiBaseUrl}/companies/${symbol}/business-model`;
 
-  // Chuẩn hóa payload: hỗ trợ cả snake_case và camelCase
+  // Chuẩn hóa payload: hỗ trợ cả snake_case và camelCase, tự động serialize nếu là object
   const payload = {
-    revenueStruct: data.revenue_struct || data.revenueStruct || '',
-    profitStruct: data.profit_struct || data.profitStruct || ''
+    revenueStruct: typeof data.revenue_struct === 'object' ? JSON.stringify(data.revenue_struct, null, 2) : (data.revenue_struct || data.revenueStruct || ''),
+    profitStruct: typeof data.profit_struct === 'object' ? JSON.stringify(data.profit_struct, null, 2) : (data.profit_struct || data.profitStruct || '')
   };
 
   let lastError = null;

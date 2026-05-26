@@ -10,19 +10,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 test('Conductor Script - runSync should orchestrate full flow and skip synced', async (t) => {
-  const ocrDataDir = path.resolve(__dirname, '..', 'tmp', 'test_ocr_dir');
-  const stateFile = path.resolve(__dirname, '..', 'tmp', 'test_sync_state.json');
-  const tempDir = path.resolve(__dirname, '..', 'tmp', 'test_temp_sync');
+  const suffix = Math.random().toString(36).substring(2, 10);
+  const ocrDataDir = path.resolve(__dirname, '..', 'tmp', `test_ocr_dir_${suffix}`);
+  const stateFile = path.resolve(__dirname, '..', 'tmp', `test_sync_state_${suffix}.json`);
+  const tempDir = path.resolve(__dirname, '..', 'tmp', `test_temp_sync_${suffix}`);
 
-  // 1. Tạo môi trường mock file system
+  // 1. Tạo môi trường mock file system và dọn dẹp sạch sẽ trước đó
+  const rmSafe = (p) => {
+    if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+  };
+  rmSafe(ocrDataDir);
+  rmSafe(tempDir);
+  if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
+
   fs.mkdirSync(path.join(ocrDataDir, 'AAA', '2025'), { recursive: true });
   fs.mkdirSync(path.join(ocrDataDir, 'BBB', '2025'), { recursive: true });
   
   fs.writeFileSync(path.join(ocrDataDir, 'AAA', '2025', 'report.txt'), 'Văn bản BCTC AAA 2025');
   fs.writeFileSync(path.join(ocrDataDir, 'BBB', '2025', 'report.txt'), 'Văn bản BCTC BBB 2025');
-
-  // Xóa file state cũ nếu có
-  if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
 
   const originalFetch = globalThis.fetch;
   let fetchCallCount = 0;

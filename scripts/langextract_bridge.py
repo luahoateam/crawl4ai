@@ -51,10 +51,11 @@ def get_model():
         MIMO_API_KEY = os.environ.get("MIMO_API_KEY")
         if not MIMO_API_KEY:
             MIMO_API_KEY = "dummy-key-for-testing"
+        MIMO_BASE_URL = os.environ.get("MIMO_BASE_URL", "https://token-plan-sgp.xiaomimimo.com/v1")
         _model = OpenAILanguageModel(
-            model_id="mimo-v2.5-pro",
+            model_id="xiaomi/mimo-v2.5-pro",
             api_key=MIMO_API_KEY,
-            base_url="https://api.xiaomimimo.com/v1",
+            base_url=MIMO_BASE_URL,
             openai_schema=openai_schema
         )
     return _model
