@@ -53,8 +53,9 @@ def load_env_key():
                     key, val = trimmed.split('=', 1)
                     key = key.strip()
                     val = val.strip().strip('"').strip("'")
-                    if key == 'API_KEY' or key == 'VNSTOCK_API_KEY':
+                    if key == 'VNSTOCK_API_KEY':
                         os.environ['VNSTOCK_API_KEY'] = val
+                    elif key == 'API_KEY':
                         os.environ['API_KEY'] = val
 
 def get_vn30_symbols():
@@ -224,6 +225,7 @@ def main():
     parser.add_argument("--year", type=int, default=2025, help="Năm dữ liệu cần tải (mặc định: 2025)")
     parser.add_argument("--force", action="store_true", help="Ghi đè cache cũ")
     parser.add_argument("--output-dir", type=str, default="stock_data/vnstock_raw", help="Thư mục lưu dữ liệu thô")
+    parser.add_argument("--workers", type=int, default=6, help="Số luồng tải song song (mặc định: 6)")
     args = parser.parse_args()
 
     # Load env keys
@@ -256,19 +258,27 @@ def main():
         print("[ERROR] Bạn phải chỉ định --symbols, --vn30 hoặc --all để chạy.")
         sys.exit(1)
 
-    print(f"[GATHER] Bắt đầu tải dữ liệu thô cho {len(symbols)} mã cổ phiếu...")
+    print(f"[GATHER] Bắt đầu tải dữ liệu thô cho {len(symbols)} mã cổ phiếu với {args.workers} workers...")
     
     # Tạo thư mục đầu ra
     output_path = os.path.abspath(args.output_dir)
     os.makedirs(output_path, exist_ok=True)
 
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     success_count = 0
-    for symbol in symbols:
-        try:
-            gather_symbol_data(symbol, args.year, output_path, force=args.force)
-            success_count += 1
-        except Exception as e:
-            print(f"[ERROR] Lỗi thu thập {symbol}: {e}")
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        futures = {
+            executor.submit(gather_symbol_data, symbol, args.year, output_path, args.force): symbol 
+            for symbol in symbols
+        }
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                future.result()
+                success_count += 1
+            except Exception as e:
+                print(f"[ERROR] Lỗi thu thập {symbol}: {e}")
 
     print(f"\n[GATHER] Hoàn thành thu thập {success_count}/{len(symbols)} mã.")
 
