@@ -2,8 +2,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { $ } from 'zx';
 import { formatExtraction } from './formatter.mjs';
 import { syncBusinessModel } from './d1_sync.mjs';
+
+// Đảm bảo zx sử dụng cmd trên Windows để tránh lỗi WSL dịch ổ ảo và lỗi prefix bash
+if (process.platform === 'win32') {
+  $.shell = 'cmd.exe';
+  $.prefix = '';
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +64,7 @@ export function saveState(stateFile, state) {
 
 /**
  * Quét đệ quy thư mục ocr_data để lấy danh sách các file OCR BCTC
- * Cấu trúc: ocr_data/{symbol}/{year}/{filename}.txt
+ * Hỗ trợ cả các cấu trúc sâu như: ocr_data/{symbol}/{year}/{subfolder}/{filename}.txt
  */
 export function scanOcrFiles(ocrDir) {
   const tasks = [];
@@ -68,24 +75,42 @@ export function scanOcrFiles(ocrDir) {
   const symbols = fs.readdirSync(ocrDir).filter(f => fs.statSync(path.join(ocrDir, f)).isDirectory());
   for (const symbol of symbols) {
     const symbolPath = path.join(ocrDir, symbol);
-    const years = fs.readdirSync(symbolPath).filter(f => fs.statSync(path.join(symbolPath, f)).isDirectory());
-    for (const yearStr of years) {
-      const year = parseInt(yearStr, 10);
-      if (isNaN(year) || yearStr.length !== 4) continue;
-
-      const yearPath = path.join(symbolPath, yearStr);
-      const files = fs.readdirSync(yearPath).filter(f => f.endsWith('.txt'));
-      
-      for (const file of files) {
-        // Ưu tiên các file OCR gốc (tránh các file preprocessed/raw sinh thêm ở local nếu có)
-        // Thông thường chỉ có 1 file text OCR chính
-        tasks.push({
-          symbol: symbol.toUpperCase(),
-          year,
-          fileName: file,
-          filePath: path.join(yearPath, file)
-        });
+    
+    function walk(dir) {
+      const list = fs.readdirSync(dir);
+      for (const file of list) {
+        const fullPath = path.join(dir, file);
+        const stat = fs.statSync(fullPath);
+        if (stat && stat.isDirectory()) {
+          walk(fullPath);
+        } else if (file.endsWith('.txt')) {
+          // Phân tích năm từ đường dẫn tương đối từ symbolPath
+          const relative = path.relative(symbolPath, dir);
+          const parts = relative.split(path.sep);
+          let year = 0;
+          for (const part of parts) {
+            if (/^\d{4}$/.test(part)) {
+              year = parseInt(part, 10);
+              break;
+            }
+          }
+          
+          if (year > 0) {
+            tasks.push({
+              symbol: symbol.toUpperCase(),
+              year,
+              fileName: file,
+              filePath: fullPath
+            });
+          }
+        }
       }
+    }
+    
+    try {
+      walk(symbolPath);
+    } catch (e) {
+      // bỏ qua lỗi đọc thư mục con
     }
   }
   return tasks;
@@ -144,8 +169,9 @@ export async function runSync(options = {}) {
       if (options.mockCommand) {
         await options.mockCommand(tempInPath, tempOutPath);
       } else {
-        // zx shell execution
-        await $`${pythonExec} scripts/langextract_bridge.py --file ${tempInPath} --out ${tempOutPath}`;
+        // Sử dụng execSync thô để tránh lỗi quoting nháy đơn của zx trên Windows
+        const { execSync } = await import('node:child_process');
+        execSync(`"${pythonExec}" scripts/langextract_bridge.py --file "${tempInPath}" --out "${tempOutPath}"`);
       }
 
       // c. Đọc kết quả JSON từ file tạm

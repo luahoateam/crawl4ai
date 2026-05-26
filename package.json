@@ -1,0 +1,28 @@
+{
+  "name": "crawl4ai",
+  "version": "1.0.0",
+  "description": "<div align=\"center\">",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luahoateam/crawl4ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/luahoateam/crawl4ai/issues"
+  },
+  "homepage": "https://github.com/luahoateam/crawl4ai#readme",
+  "dependencies": {
+    "zx": "^8.8.5"
+  }
+}
