@@ -97,6 +97,32 @@ export function formatToMarkdown(data) {
   };
 }
 
+/**
+ * Định dạng các trường chuỗi giá trị (inputs, production, outputs) sang Markdown gạch đầu dòng có cấu trúc
+ * @param {object} data - Unified JSON đã bóc tách
+ * @returns {object} inputs, production, outputs ở dạng chuỗi Markdown thụt lề con
+ */
+export function formatValueChainToMarkdown(data) {
+  const formatField = (text) => {
+    if (!text) return '2025 (Cập nhật):\n   * Đang cập nhật';
+    const lines = text.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => {
+        // Loại bỏ dấu gạch đầu dòng cũ (-, *, +, 1., 2.) ở đầu dòng
+        const cleaned = line.replace(/^[-*+\d.]+\s*/, '');
+        return `   * ${cleaned}`;
+      });
+    return `2025 (Cập nhật):\n${lines.join('\n')}`;
+  };
+
+  return {
+    inputs: formatField(data.inputs),
+    production: formatField(data.production),
+    outputs: formatField(data.outputs)
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THUẬT TOÁN APPEND-SYNC
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,8 +130,8 @@ export function formatToMarkdown(data) {
 /**
  * Ghép nối tiếp dữ liệu Markdown của năm mới lên đầu dữ liệu cũ, không tạo trùng lặp
  * @param {string} oldText - Chuỗi Markdown cũ từ D1
- * @param {string} newTextLine - Dòng Markdown mới của năm 2025
- * @param {number} year - Năm cần đồng bộ (ví dụ: 2025)
+ * @param {string} newTextLine - Dòng Markdown mới của năm
+ * @param {string|number} year - Năm cần đồng bộ (ví dụ: 2025 hoặc '2025 (Cập nhật)')
  * @returns {string} Chuỗi Markdown sau khi đã ghép nối
  */
 export function appendMarkdown(oldText, newTextLine, year = 2025) {
@@ -113,14 +139,21 @@ export function appendMarkdown(oldText, newTextLine, year = 2025) {
   const cleanNew = newTextLine.trim();
 
   if (!cleanOld) {
-    return `- ${cleanNew}`;
+    const newBlock = cleanNew.split('\n').map((l, idx) => {
+      if (idx === 0) return l.startsWith('-') ? l : `- ${l}`;
+      return l;
+    }).join('\n');
+    return newBlock;
   }
 
-  // Tách văn bản cũ thành các khối năm (mỗi khối bắt đầu bằng '- YYYY:' hoặc '- [ ] YYYY:')
-  const lines = cleanOld.split('\n');
-  const yearPattern = new RegExp(`^-\\s*\\*?\\*?${year}\\*?\\*?:`);
+  // Tránh lỗi Regex đối với các ký tự đặc biệt có trong year (như dấu ngoặc đơn của '2025 (Cập nhật)')
+  const escapedYear = year.toString().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const yearPattern = new RegExp(`^-\\s*\\*?\\*?${escapedYear}\\*?\\*?:`);
 
-  // Tìm xem năm 2025 đã có trong chuỗi cũ chưa
+  // Tách văn bản cũ thành các dòng
+  const lines = cleanOld.split('\n');
+
+  // Tìm xem năm đã có trong chuỗi cũ chưa
   let existIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (yearPattern.test(lines[i])) {
@@ -130,23 +163,33 @@ export function appendMarkdown(oldText, newTextLine, year = 2025) {
   }
 
   if (existIndex !== -1) {
-    // Đã tồn tại năm 2025, ta cập nhật lại khối của năm 2025
-    // Tìm điểm bắt đầu của năm tiếp theo (nhỏ hơn 2025) để thay thế chính xác khối
+    // Đã tồn tại năm, ta cập nhật lại khối của năm đó
+    // Tìm điểm bắt đầu của khối năm tiếp theo để thay thế chính xác khối
     let nextYearIndex = lines.length;
     for (let i = existIndex + 1; i < lines.length; i++) {
-      if (/^-\s*\d{4}:/.test(lines[i])) {
+      if (/^-\s*(?:\d{4}|\d{4}\s*\(Cập nhật\)):/.test(lines[i])) {
         nextYearIndex = i;
         break;
       }
     }
     
-    // Tạo mảng dòng mới cho năm 2025
-    const newBlockLines = cleanNew.split('\n').map(l => l.startsWith('-') ? l : `- ${l}`);
+    // Tạo mảng dòng mới cho năm
+    const newBlockLines = cleanNew.split('\n').map((l, idx) => {
+      if (idx === 0) {
+        return l.startsWith('-') ? l : `- ${l}`;
+      }
+      return l;
+    });
     lines.splice(existIndex, nextYearIndex - existIndex, ...newBlockLines);
     return lines.join('\n');
   } else {
-    // Chưa tồn tại năm 2025, chèn dòng mới lên đầu
-    const newBlock = cleanNew.split('\n').map(l => l.startsWith('-') ? l : `- ${l}`).join('\n');
+    // Chưa tồn tại năm, chèn dòng mới lên đầu
+    const newBlock = cleanNew.split('\n').map((l, idx) => {
+      if (idx === 0) {
+        return l.startsWith('-') ? l : `- ${l}`;
+      }
+      return l;
+    }).join('\n');
     return `${newBlock}\n${cleanOld}`;
   }
 }
@@ -245,6 +288,61 @@ async function getD1BusinessModel(symbol, opts) {
 }
 
 /**
+ * Tự động đăng ký công ty mới lên D1 nếu chưa tồn tại
+ */
+async function createD1Company(symbol, opts) {
+  const apiBaseUrl = opts.apiBaseUrl || process.env.API_BASE_URL || 'https://stock-api-worker.luahoachungkhoan.workers.dev/api';
+  const apiKey = opts.apiKey || process.env.API_KEY || '';
+  const url = `${apiBaseUrl}/companies`;
+
+  let exchange = 'UPCOM';
+  let industry = 'Generic';
+  const rawDir = path.resolve(__dirname, '..', 'stock_data', 'vnstock_raw');
+  const overviewPath = path.join(rawDir, symbol, '2025', 'overview.json');
+  
+  if (fs.existsSync(overviewPath)) {
+    try {
+      const content = fs.readFileSync(overviewPath, 'utf8');
+      const data = JSON.parse(content);
+      const profile = Array.isArray(data) ? data[0] : data;
+      if (profile) {
+        let ex = (profile.exchange || profile.trade_exchange || 'UPCOM').toUpperCase();
+        if (ex.includes('HOSE') || ex.includes('HSX')) exchange = 'HOSE';
+        else if (ex.includes('HNX')) exchange = 'HNX';
+        else exchange = 'UPCOM';
+        
+        industry = profile.icb_name3 || profile.icb_name2 || 'Generic';
+      }
+    } catch (e) {
+      // bỏ qua lỗi đọc file
+    }
+  }
+
+  const payload = {
+    symbol: symbol,
+    exchange: exchange,
+    industry: industry
+  };
+
+  console.log(`[D1-AUTO-CREATE] Đang tự động đăng ký công ty mới ${symbol} (Sàn: ${exchange}, Ngành: ${industry})...`);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Đăng ký công ty thất bại HTTP ${response.status}: ${text}`);
+  }
+  console.log(`✓ [D1-AUTO-CREATE] Đăng ký công ty ${symbol} thành công.`);
+  return true;
+}
+
+/**
  * Gửi cập nhật ghép nối lên D1 qua PUT API
  */
 async function putD1BusinessModel(symbol, payload, opts) {
@@ -252,7 +350,7 @@ async function putD1BusinessModel(symbol, payload, opts) {
   const apiKey = opts.apiKey || process.env.API_KEY || '';
   const url = `${apiBaseUrl}/companies/${symbol}/business-model`;
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: 'PUT',
     headers: {
       'X-API-Key': apiKey,
@@ -260,6 +358,26 @@ async function putD1BusinessModel(symbol, payload, opts) {
     },
     body: JSON.stringify(payload)
   });
+
+  // Nếu gặp lỗi Company not found (HTTP 404), tự động đăng ký công ty và thử lại lần 2
+  if (response.status === 404) {
+    console.log(`[D1-SYNC] Phát hiện mã ${symbol} chưa có trên D1. Đang tự động đăng ký...`);
+    try {
+      await createD1Company(symbol, opts);
+      // Thử PUT lại lần 2
+      response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (createErr) {
+      console.error(`[D1-SYNC] ✗ Tự động đăng ký mã ${symbol} thất bại: ${createErr.message}`);
+      throw new Error(`Company not found on D1 and auto-creation failed.`);
+    }
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -319,17 +437,29 @@ export async function runSyncVN30(options = {}) {
       const oldRev = oldBM ? (oldBM.revenue_struct || oldBM.revenueStruct || '') : '';
       const oldProf = oldBM ? (oldBM.profit_struct || oldBM.profitStruct || '') : '';
       const oldOthers = oldBM ? (oldBM.others || '') : '';
+      const oldInputs = oldBM ? (oldBM.inputs || '') : '';
+      const oldProd = oldBM ? (oldBM.production || '') : '';
+      const oldOut = oldBM ? (oldBM.outputs || '') : '';
 
       // c. Chạy thuật toán Append chèn 2025 lên đầu
       const mergedRev = appendMarkdown(oldRev, formattedMD.revenueStruct, item.year);
       const mergedProf = appendMarkdown(oldProf, formattedMD.profitStruct, item.year);
       const mergedOthers = appendMarkdown(oldOthers, formattedMD.others, item.year);
 
+      // Ghép nối chuỗi giá trị mới dạng 2025 (Cập nhật)
+      const formattedVC = formatValueChainToMarkdown(item);
+      const mergedInputs = appendMarkdown(oldInputs, formattedVC.inputs, '2025 (Cập nhật)');
+      const mergedProd = appendMarkdown(oldProd, formattedVC.production, '2025 (Cập nhật)');
+      const mergedOut = appendMarkdown(oldOut, formattedVC.outputs, '2025 (Cập nhật)');
+
       // d. PUT gửi dữ liệu đã ghép lên D1
       const payload = {
         revenueStruct: mergedRev,
         profitStruct: mergedProf,
-        others: mergedOthers
+        others: mergedOthers,
+        inputs: mergedInputs,
+        production: mergedProd,
+        outputs: mergedOut
       };
 
       await putD1BusinessModel(item.symbol, payload, options);
