@@ -1,0 +1,49 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Stock Portal - Trang chủ">
+  <section class="hero">
+    <div class="container hero-container">
+      <h1 class="hero-title">Tra cứu doanh nghiệp & Mô hình kinh doanh niêm yết</h1>
+      <p class="hero-desc">
+        Tìm kiếm và phân tích chuỗi giá trị (Value Chain), tin tức và tài liệu tài chính của hơn 1,400+ doanh nghiệp trên ba sàn HOSE, HNX, và UPCOM.
+      </p>
+    </div>
+  </section>
+
+  <style>
+    .hero {
+      padding: 4rem 0;
+      text-align: center;
+    }
+    
+    .hero-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 1.5rem;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    @media (min-width: 768px) {
+      .hero-title {
+        font-size: 3.5rem;
+      }
+    }
+
+    .hero-desc {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      margin-bottom: 2rem;
+    }
+  </style>
+</Layout>

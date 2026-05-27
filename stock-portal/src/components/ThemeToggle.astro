@@ -1,0 +1,100 @@
+---
+---
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+  <!-- Sun Icon (Light Mode) -->
+  <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+  </svg>
+  <!-- Moon Icon (Dark Mode) -->
+  <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+  </svg>
+</button>
+
+<style>
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  
+  .theme-toggle:hover {
+    background-color: var(--bg-tertiary);
+    border-color: var(--text-muted);
+    transform: scale(1.05);
+  }
+  
+  .sun-icon {
+    display: none;
+    width: 20px;
+    height: 20px;
+  }
+  
+  .moon-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+  
+  :root[data-theme="dark"] .sun-icon {
+    display: block;
+  }
+  
+  :root[data-theme="dark"] .moon-icon {
+    display: none;
+  }
+</style>
+
+<script is:inline>
+  const theme = (() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+      return localStorage.getItem('theme');
+    }
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  })();
+  
+  if (theme === 'light') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+  
+  window.localStorage.setItem('theme', theme);
+
+  // Set up click handler
+  const setupToggle = () => {
+    const handleToggleClick = () => {
+      const element = document.documentElement;
+      const isDark = element.getAttribute("data-theme") === "dark";
+      if (isDark) {
+        element.removeAttribute("data-theme");
+        localStorage.setItem("theme", "light");
+      } else {
+        element.setAttribute("data-theme", "dark");
+        localStorage.setItem("theme", "dark");
+      }
+    };
+
+    const toggleBtn = document.getElementById("theme-toggle");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", handleToggleClick);
+    }
+  };
+  
+  setupToggle();
+  
+  // Also hook into Astro transitions if present
+  document.addEventListener('astro:page-load', setupToggle);
+</script>

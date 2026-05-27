@@ -1,0 +1,161 @@
+---
+import '../styles/global.css';
+import ThemeToggle from '../components/ThemeToggle.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { 
+  title = "Stock Portal - Tra cứu doanh nghiệp Việt Nam", 
+  description = "Cổng thông tin tra cứu mô hình kinh doanh, tin tức và tài liệu tài chính của các doanh nghiệp niêm yết tại Việt Nam." 
+} = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    
+    <!-- Inline script to restore theme quickly and prevent flash -->
+    <script is:inline>
+      const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+    </script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="container header-container">
+        <a href="/" class="logo">
+          <span class="logo-accent">Stock</span>Portal
+        </a>
+        <nav class="nav">
+          <a href="/companies" class="nav-link">Doanh Nghiệp</a>
+          <ThemeToggle />
+        </nav>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-container">
+        <p>&copy; {new Date().getFullYear()} Lúa Hóa Team. All rights reserved.</p>
+        <p class="footer-note">Dữ liệu được cung cấp bởi Vnstock ecosystem.</p>
+      </div>
+    </footer>
+
+    <style>
+      .header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        border-bottom: 1px solid var(--border-color);
+        background-color: var(--bg-secondary);
+        opacity: 0.95;
+      }
+
+      /* Premium glassmorphism touch */
+      :root[data-theme="dark"] .header {
+        background-color: rgba(21, 27, 44, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      :root:not([data-theme="dark"]) .header {
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      .header-container {
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .logo {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+      }
+
+      .logo-accent {
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-right: 2px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+      }
+
+      .nav-link {
+        font-weight: 500;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        transition: color 0.2s ease;
+      }
+
+      .nav-link:hover {
+        color: var(--accent-primary);
+      }
+
+      .main-content {
+        min-height: calc(100vh - 170px);
+        padding: 2rem 0;
+      }
+
+      .footer {
+        border-top: 1px solid var(--border-color);
+        background-color: var(--bg-secondary);
+        padding: 2rem 0;
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      .footer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: center;
+      }
+
+      @media (min-width: 768px) {
+        .footer-container {
+          flex-direction: row;
+          justify-content: space-between;
+        }
+      }
+
+      .footer-note {
+        font-size: 0.8rem;
+      }
+    </style>
+  </body>
+</html>

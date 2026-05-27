@@ -1,0 +1,11 @@
+name = "stock-portal"
+compatibility_date = "2024-09-26"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stock_db"
+database_id = "64fdc9a0-7248-46f6-8da5-578f0a3b8af6"
+
+[[kv_namespaces]]
+binding = "USER_STORE"
+id = "PLACEHOLDER_KV_ID"

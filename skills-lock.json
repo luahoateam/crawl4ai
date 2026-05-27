@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "astro": {
+      "source": "astrolicious/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/astro/SKILL.md",
+      "computedHash": "3a70f9666e7b6a03efb939b7e62938f4d3a6a5d956b2cc3c10011fda6ba27e9b"
+    },
+    "cloudflare-expert": {
+      "source": "personamanagmentlayer/pcl",
+      "sourceType": "github",
+      "skillPath": "stdlib/cloud/cloudflare-expert/SKILL.md",
+      "computedHash": "80c27b0c348d8dae9ab2ac0c6c054c2fdd4087a34bdcf6d27743eb5296b0bcd5"
+    },
+    "crawl4ai": {
+      "source": "brettdavies/crawl4ai-skill",
+      "sourceType": "github",
+      "skillPath": "crawl4ai/SKILL.md",
+      "computedHash": "ece27ec28ade6cf91575910b56a418d126c00afaa519a2beed19203d66f33ef8"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "9e1c8b3103f92fa8092568a44fe64858de7c5c9dc65ce4bea8f168080e889cfd"
+    },
+    "jwt-security": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "jwt-security/SKILL.md",
+      "computedHash": "88b3f7d03223cf20e24598d231e667b13ba6bf9040fd490feafcd226356a9db1"
+    },
+    "playwright-e2e-testing": {
+      "source": "fugazi/test-automation-skills-agents",
+      "sourceType": "github",
+      "skillPath": "skills/playwright-e2e-testing/SKILL.md",
+      "computedHash": "dea206212f6598801aafdcca3fcbeca820bb0a23fea8a59f1780b1caf3e5f0b9"
+    },
+    "tdd": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "78b31b2120c5fe7aced1cebfd4c7c94acb0037fd4f89c83c67584414aa4173bd"
+    },
+    "ui-design": {
+      "source": "shajith003/awesome-claude-skills",
+      "sourceType": "github",
+      "skillPath": "ui-design/SKILL.md",
+      "computedHash": "44b4e7f6fe923ac179a556feeea1feecf10227fceca0fc890abf921895d6a665"
+    },
+    "write-endpoints": {
+      "source": "cloudflare/chanfana",
+      "sourceType": "github",
+      "skillPath": "skills/write-endpoints/SKILL.md",
+      "computedHash": "eb494d7528ceca1711f4f7640dabdf53f35826cdb08b1401811c1c28413ff78a"
+    }
+  }
+}
