@@ -1,0 +1,329 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// If user is already logged in, redirect them to companies list
+const token = Astro.cookies.get('token')?.value;
+if (token) {
+  return Astro.redirect('/companies');
+}
+---
+
+<Layout title="Đăng nhập Hội viên - Stock Portal">
+  <div class="container login-page">
+    <div class="login-card-wrapper">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="lock-icon-bg">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" width="24" height="24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <h1 class="login-title">Đăng Nhập Hội Viên</h1>
+          <p class="login-subtitle">Vui lòng đăng nhập bằng tài khoản Lúa Hóa Team để xem báo cáo nghiên cứu chuyên sâu.</p>
+        </div>
+
+        <!-- Error Alert -->
+        <div class="error-alert" id="error-alert" style="display: none;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span id="error-message">Tên đăng nhập hoặc mật khẩu không đúng</span>
+        </div>
+
+        <!-- Login Form -->
+        <form class="login-form" id="login-form">
+          <div class="form-group">
+            <label for="username">Tên đăng nhập</label>
+            <input 
+              type="text" 
+              id="username" 
+              name="username" 
+              placeholder="Nhập tài khoản hội viên..." 
+              required 
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Mật khẩu</label>
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              placeholder="Nhập mật khẩu..." 
+              required 
+            />
+          </div>
+
+          <button type="submit" class="btn-submit-login" id="btn-submit">
+            <span id="btn-text">Xác nhận đăng nhập</span>
+            <div class="spinner" id="btn-spinner" style="display: none;"></div>
+          </button>
+        </form>
+
+        <div class="login-footer-info">
+          <span>Chưa có tài khoản hội viên? </span>
+          <a href="#" class="link-contact">Liên hệ Lúa Hóa Team</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .login-page {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: calc(100vh - 220px);
+      padding: 2rem 0;
+    }
+
+    .login-card-wrapper {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+    }
+
+    /* Premium Glassmorphism Card styling */
+    .login-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 3rem 2.25rem;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--accent-gradient);
+    }
+
+    .login-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .lock-icon-bg {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--accent-primary);
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .login-title {
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-family: var(--font-display);
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .login-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* Error Alert styling */
+    .error-alert {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      color: #ef4444;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: left;
+      animation: shake 0.4s ease;
+    }
+
+    .error-alert svg {
+      flex-shrink: 0;
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      text-align: left;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    .form-group input {
+      background: var(--bg-primary);
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.85rem 1.15rem;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: all 0.25s ease;
+      font-family: var(--font-sans);
+    }
+
+    .form-group input:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-submit-login {
+      margin-top: 0.75rem;
+      background: var(--accent-gradient);
+      color: white;
+      border: none;
+      padding: 0.95rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .btn-submit-login:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-submit-login:active {
+      transform: translateY(0);
+    }
+
+    .login-footer-info {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .link-contact {
+      color: var(--accent-primary);
+      font-weight: 700;
+    }
+
+    .link-contact:hover {
+      text-decoration: underline;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2.5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+  </style>
+
+  <!-- Client-side Login controller -->
+  <script is:inline>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('login-form');
+      if (!loginForm) return;
+
+      const errorAlert = document.getElementById('error-alert');
+      const errorMessage = document.getElementById('error-message');
+      const btnSubmit = document.getElementById('btn-submit');
+      const btnText = document.getElementById('btn-text');
+      const btnSpinner = document.getElementById('btn-spinner');
+
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Reset states
+        errorAlert.style.display = 'none';
+        btnSubmit.disabled = true;
+        btnText.textContent = 'Đang xác thực...';
+        btnSpinner.style.display = 'block';
+
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            // Successfully logged in! Redirect to companies
+            // Try to redirect back to previous page or /companies
+            const referrer = document.referrer;
+            if (referrer && referrer.includes(window.location.origin) && !referrer.includes('/login')) {
+              window.location.href = referrer;
+            } else {
+              window.location.href = '/companies';
+            }
+          } else {
+            // Failed login
+            errorMessage.textContent = data.error || 'Tên đăng nhập hoặc mật khẩu không chính xác';
+            errorAlert.style.display = 'flex';
+            
+            // Restore button state
+            btnSubmit.disabled = false;
+            btnText.textContent = 'Xác nhận đăng nhập';
+            btnSpinner.style.display = 'none';
+          }
+        } catch (err) {
+          errorMessage.textContent = 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
+          errorAlert.style.display = 'flex';
+          
+          btnSubmit.disabled = false;
+          btnText.textContent = 'Xác nhận đăng nhập';
+          btnSpinner.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</Layout>

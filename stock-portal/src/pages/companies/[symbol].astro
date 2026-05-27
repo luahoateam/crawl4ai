@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { fetchCompanyPack } from '../../lib/api';
+import BusinessModel from '../../components/BusinessModel.astro';
 
 const { symbol } = Astro.params;
 
@@ -133,114 +134,14 @@ try {
       <div class="tab-panels">
         <!-- 1. Business Model Panel -->
         <div class="tab-panel active" id="business-model" role="tabpanel">
-          <!-- Placeholder structure, details will be enhanced in Phase 3 sync-2025-vy8 -->
-          <div class="business-model-section">
-            <div class="bm-header">
-              <h2>Phân Tích Chuỗi Giá Trị & Cơ Cấu Tài Chính</h2>
-              <p>Mô tả dòng chảy sản xuất từ nguyên liệu đầu vào, quy trình chế tạo đến sản phẩm đầu ra hoàn chỉnh.</p>
-            </div>
-
-            <!-- Value Chain Flowchart -->
-            <div class="value-chain-section">
-              <h3 class="section-subtitle">Chuỗi Giá Trị (Value Chain Flow)</h3>
-              <div class="flow-grid">
-                <!-- Inputs Card -->
-                <div class="flow-card">
-                  <div class="flow-card-header bg-input">Đầu vào (Inputs)</div>
-                  <div class="flow-card-body">
-                    {pack.businessModel.inputs.map(item => (
-                      <div class="flow-item">
-                        <div class="item-title-row">
-                          <span class="item-name">{item.item}</span>
-                          <span class="item-ratio">{item.ratio}</span>
-                        </div>
-                        <p class="item-desc">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <!-- Arrow -->
-                <div class="flow-arrow">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-                  </svg>
-                </div>
-
-                <!-- Production Card -->
-                <div class="flow-card">
-                  <div class="flow-card-header bg-production">Vận hành / Chế tạo (Production)</div>
-                  <div class="flow-card-body">
-                    {pack.businessModel.production.map(item => (
-                      <div class="flow-item">
-                        <div class="item-title-row">
-                          <span class="item-name">{item.item}</span>
-                          <span class="item-ratio">{item.ratio}</span>
-                        </div>
-                        <p class="item-desc">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <!-- Arrow -->
-                <div class="flow-arrow">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-                  </svg>
-                </div>
-
-                <!-- Outputs Card -->
-                <div class="flow-card">
-                  <div class="flow-card-header bg-output">Đầu ra / Thương mại (Outputs)</div>
-                  <div class="flow-card-body">
-                    {pack.businessModel.outputs.map(item => (
-                      <div class="flow-item">
-                        <div class="item-title-row">
-                          <span class="item-name">{item.item}</span>
-                          <span class="item-ratio">{item.ratio}</span>
-                        </div>
-                        <p class="item-desc">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Revenue and Profit Structures -->
-            <div class="financial-structures">
-              <div class="structure-card">
-                <h3 class="section-subtitle">Cơ cấu Doanh thu (Revenue %)</h3>
-                <div class="bar-chart-container">
-                  {pack.businessModel.revenueStruct.map(item => (
-                    <div class="chart-row">
-                      <div class="label-col">{item.item}</div>
-                      <div class="bar-col">
-                        <div class="bar bg-blue" style={`width: ${item.value}%`}></div>
-                      </div>
-                      <div class="value-col">{item.value}%</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div class="structure-card">
-                <h3 class="section-subtitle">Cơ cấu Lợi nhuận (Profit %)</h3>
-                <div class="bar-chart-container">
-                  {pack.businessModel.profitStruct.map(item => (
-                    <div class="chart-row">
-                      <div class="label-col">{item.item}</div>
-                      <div class="bar-col">
-                        <div class="bar bg-emerald" style={`width: ${item.value}%`}></div>
-                      </div>
-                      <div class="value-col">{item.value}%</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <BusinessModel
+            symbol={pack.company.symbol}
+            revenueStruct={pack.businessModel.revenueStruct}
+            profitStruct={pack.businessModel.profitStruct}
+            inputs={pack.businessModel.inputs}
+            production={pack.businessModel.production}
+            outputs={pack.businessModel.outputs}
+          />
         </div>
 
         <!-- 2. News Panel -->

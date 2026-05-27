@@ -1,0 +1,345 @@
+---
+import { formatRatio, calculateColorIntensity } from '../lib/diagram';
+
+interface ValueChainItem {
+  item: string;
+  ratio: string | number;
+  description: string;
+}
+
+interface Props {
+  inputs: ValueChainItem[];
+  production: ValueChainItem[];
+  outputs: ValueChainItem[];
+}
+
+const { inputs = [], production = [], outputs = [] } = Astro.props;
+---
+
+<div class="value-chain-wrapper">
+  <div class="flow-container">
+    
+    <!-- 1. INPUTS COLUMN -->
+    <div class="flow-column">
+      <div class="column-header header-input">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376A8.965 8.965 0 0012 12.75a8.965 8.965 0 00-3.75 4.5m7.5 0a5.99 5.99 0 001.35-3.375h1.5a1.125 1.125 0 011.125 1.125v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 003.375-3.375H12M3 16.125c0-1.865 1.513-3.375 3.375-3.375h1.5A1.125 1.125 0 019 13.875v1.5a3.375 3.375 0 00-3.375 3.375H3v-2.625z" />
+        </svg>
+        <span>Nguyên Liệu Đầu Vào</span>
+      </div>
+      <div class="flow-cards">
+        {inputs.map((item, idx) => {
+          const ratioStr = formatRatio(item.ratio);
+          const intensity = calculateColorIntensity(item.ratio);
+          return (
+            <div class="interactive-flow-card" data-idx={idx}>
+              <div class="card-top">
+                <span class="card-name">{item.item}</span>
+                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+              </div>
+              <div class="tooltip-box">
+                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-body">{item.description}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    <!-- Arrow 1 -->
+    <div class="connector-arrow">
+      <div class="pulse-line"></div>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+      </svg>
+    </div>
+
+    <!-- 2. PRODUCTION COLUMN -->
+    <div class="flow-column">
+      <div class="column-header header-production">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68-.34-1.44-.08-1.78.6l-2 4a1.5 1.5 0 11-2.68-1.34l2-4c.34-.68 1.1-1.04 1.78-.6m2.68 3.34A1.5 1.5 0 0012 18h2.34m0 0a1.5 1.5 0 001.34-2.16l-2-4a1.5 1.5 0 10-2.68 1.34l2 4c.34.68 1.1 1.04 1.78.6M6.34 10.34c-.68-.34-1.44-.08-1.78.6l-2 4a1.5 1.5 0 11-2.68-1.34l2-4c.34-.68 1.1-1.04 1.78-.6M12 6h2.34" />
+        </svg>
+        <span>Vận Hành Chế Tạo</span>
+      </div>
+      <div class="flow-cards">
+        {production.map((item, idx) => {
+          const ratioStr = formatRatio(item.ratio);
+          const intensity = calculateColorIntensity(item.ratio);
+          return (
+            <div class="interactive-flow-card" data-idx={idx}>
+              <div class="card-top">
+                <span class="card-name">{item.item}</span>
+                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+              </div>
+              <div class="tooltip-box">
+                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-body">{item.description}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    <!-- Arrow 2 -->
+    <div class="connector-arrow">
+      <div class="pulse-line"></div>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+      </svg>
+    </div>
+
+    <!-- 3. OUTPUTS COLUMN -->
+    <div class="flow-column">
+      <div class="column-header header-output">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-10.5 0V7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-6-10.5V3.75m0 0a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V10.5m-4.5-6.75h4.5" />
+        </svg>
+        <span>Sản Phẩm Đầu Ra</span>
+      </div>
+      <div class="flow-cards">
+        {outputs.map((item, idx) => {
+          const ratioStr = formatRatio(item.ratio);
+          const intensity = calculateColorIntensity(item.ratio);
+          return (
+            <div class="interactive-flow-card" data-idx={idx}>
+              <div class="card-top">
+                <span class="card-name">{item.item}</span>
+                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+              </div>
+              <div class="tooltip-box">
+                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-body">{item.description}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .value-chain-wrapper {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 2rem;
+  }
+
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  @media (min-width: 992px) {
+    .flow-container {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: 1rem;
+    }
+  }
+
+  .flow-column {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 1.25rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    position: relative;
+  }
+
+  @media (min-width: 992px) {
+    .flow-column {
+      width: calc((100% - 100px) / 3);
+    }
+  }
+
+  .column-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.25rem;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1rem;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .header-input { color: #3b82f6; border-bottom-color: rgba(59, 130, 246, 0.3); }
+  .header-production { color: #8b5cf6; border-bottom-color: rgba(139, 92, 246, 0.3); }
+  .header-output { color: #10b981; border-bottom-color: rgba(16, 185, 129, 0.3); }
+
+  .flow-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex-grow: 1;
+  }
+
+  /* Interactive Flow Card with Tooltip */
+  .interactive-flow-card {
+    position: relative;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .interactive-flow-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-md);
+    z-index: 5;
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .card-name {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: left;
+  }
+
+  .card-ratio-badge {
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  /* Tooltip Box Styles */
+  .tooltip-box {
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    width: 250px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease-out;
+    text-align: left;
+    z-index: 100;
+  }
+
+  /* Tooltip triangle */
+  .tooltip-box::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #0f172a;
+  }
+
+  .interactive-flow-card:hover .tooltip-box {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+
+  .tooltip-header {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #3b82f6;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 0.35rem;
+  }
+
+  .tooltip-body {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #94a3b8;
+  }
+
+  /* Connectors and arrows */
+  .connector-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: var(--text-muted);
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .connector-arrow svg {
+    width: 24px;
+    height: 24px;
+    z-index: 2;
+  }
+
+  /* Animated pulse line for flow effect */
+  .pulse-line {
+    position: absolute;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, var(--accent-primary), transparent);
+    animation: flow-down 1.5s linear infinite;
+    opacity: 0.4;
+    z-index: 1;
+  }
+
+  @media (min-width: 992px) {
+    .connector-arrow {
+      height: auto;
+      width: 50px;
+    }
+    
+    .pulse-line {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(to right, transparent, var(--accent-primary), transparent);
+      animation: flow-right 1.5s linear infinite;
+    }
+  }
+
+  @media (max-width: 991px) {
+    .connector-arrow svg {
+      transform: rotate(90deg);
+    }
+  }
+
+  /* Keyframe animations */
+  @keyframes flow-right {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  @keyframes flow-down {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+</style>

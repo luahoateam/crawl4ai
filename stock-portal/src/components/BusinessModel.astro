@@ -1,0 +1,300 @@
+---
+import ValueChainDiagram from './ValueChainDiagram.astro';
+
+interface StructuralItem {
+  item: string;
+  value: number;
+}
+
+interface ValueChainItem {
+  item: string;
+  ratio: string | number;
+  description: string;
+}
+
+interface Props {
+  symbol: string;
+  revenueStruct: StructuralItem[];
+  profitStruct: StructuralItem[];
+  inputs: ValueChainItem[];
+  production: ValueChainItem[];
+  outputs: ValueChainItem[];
+}
+
+const { 
+  symbol,
+  revenueStruct = [], 
+  profitStruct = [], 
+  inputs = [], 
+  production = [], 
+  outputs = [] 
+} = Astro.props;
+
+// Mock business analysis details based on symbol (resilient, high quality data)
+let targetCustomers = "Đại lý phân phối cấp 1 toàn quốc, nhà thầu xây dựng hạ tầng, các đối tác cơ khí chế tạo lớn.";
+let distributionChannels = "Kênh phân phối trực tiếp (B2B) tới các đại lý lớn và dự án trọng điểm quốc gia, kết hợp bán hàng gián tiếp.";
+let competitiveAdvantage = "Quy mô sản xuất lớn nhất Đông Nam Á giúp tối ưu chi phí cố định (Định phí sản xuất).";
+let entryBarriers = "Yêu cầu vốn đầu tư ban đầu cực lớn (hàng tỷ USD cho lò cao BF), giấy phép môi trường và cảng biển logistics.";
+let operationRisks = "Giá quặng sắt và than cốc biến động mạnh, rủi ro tỷ giá do nguyên liệu chủ yếu nhập khẩu.";
+let riskMitigation = "Sử dụng các hợp đồng phái sinh phòng ngừa rủi ro giá nguyên liệu thế giới, đa dạng hóa thị trường nhập khẩu.";
+
+if (symbol.toUpperCase() === 'HPG') {
+  targetCustomers = "Đại lý thép cấp 1 phủ khắp 63 tỉnh thành, các tổng thầu xây dựng lớn (Coteccons, Hòa Bình), doanh nghiệp cơ khí chế tạo ống thép và tôn mạ, các thị trường xuất khẩu như Mỹ, EU, Nhật Bản, Úc.";
+  distributionChannels = "Kênh phân phối trực tiếp tới các công trình dự án hạ tầng lớn (sân bay Long Thành, cao tốc Bắc-Nam) và kênh đại lý sỉ. Sở hữu cảng nước sâu Dung Quất giúp vận chuyển đường biển nội địa và xuất khẩu tải trọng lớn cực kỳ hiệu quả.";
+  competitiveAdvantage = "Quy mô sản xuất vượt trội (lớn nhất Việt Nam với hơn 8.5 triệu tấn/năm). Hệ thống chuỗi sản xuất khép kín tối ưu từ quặng sắt đến thép thành phẩm. Tự chủ được 80% lượng điện năng nhờ công nghệ tận dụng nhiệt dư lò cao, giúp hạ giá thành sản xuất tối đa.";
+  entryBarriers = "Vốn đầu tư ban đầu siêu khổng lồ (Dự án Dung Quất 2 lên tới 3 tỷ USD). Yêu cầu quỹ đất lớn, cảng nước sâu logistics tự chủ và quy trình thẩm định môi trường cực kỳ khắt khe của Nhà nước đối với ngành công nghiệp nặng.";
+  operationRisks = "Rủi ro biến động giá nguyên liệu thế giới (Quặng sắt từ Úc/Brazil, Than mỡ) chiếm 70% giá thành. Rủi ro về phòng vệ thương mại tại các thị trường xuất khẩu Mỹ/châu Âu. Rủi ro tỷ giá USD/VND đối với dư nợ vay và nhập khẩu nguyên liệu.";
+  riskMitigation = "Ký kết các hợp đồng mua kỳ hạn quặng sắt/than cốc dài hạn với các nhà cung cấp uy tín thế giới (Vale, BHP). Nâng cao tỷ trọng xuất khẩu để tạo nguồn thu ngoại tệ tự nhiên, tự chủ dòng tiền phòng ngừa rủi ro tỷ giá.";
+}
+---
+
+<div class="business-model-component">
+  <!-- 1. Value Chain Flow -->
+  <div class="bm-section">
+    <h3 class="section-subtitle">Chuỗi Giá Trị Doanh Nghiệp (Value Chain)</h3>
+    <ValueChainDiagram inputs={inputs} production={production} outputs={outputs} />
+  </div>
+
+  <!-- 2. Financial Structures -->
+  <div class="bm-section">
+    <h3 class="section-subtitle">Cơ Cấu Doanh Thu & Lợi Nhuận</h3>
+    <div class="financial-structures">
+      <!-- Revenue Card -->
+      <div class="structure-card">
+        <h4 class="card-subtitle">Cơ cấu Doanh thu (Revenue %)</h4>
+        <div class="bar-chart-container">
+          {revenueStruct.map(item => (
+            <div class="chart-row">
+              <div class="label-col" title={item.item}>{item.item}</div>
+              <div class="bar-col">
+                <div class="bar bg-blue" style={`width: ${item.value}%`}></div>
+              </div>
+              <div class="value-col">{item.value}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Profit Card -->
+      <div class="structure-card">
+        <h4 class="card-subtitle">Cơ cấu Lợi nhuận (Profit %)</h4>
+        <div class="bar-chart-container">
+          {profitStruct.map(item => (
+            <div class="chart-row">
+              <div class="label-col" title={item.item}>{item.item}</div>
+              <div class="bar-col">
+                <div class="bar bg-emerald" style={`width: ${item.value}%`}></div>
+              </div>
+              <div class="value-col">{item.value}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Business Analysis Cards (Premium Layout) -->
+  <div class="bm-section">
+    <h3 class="section-subtitle">Phân Tích Chi Tiết Hoạt Động</h3>
+    <div class="analysis-cards-grid">
+      <!-- Card 1 -->
+      <div class="analysis-card">
+        <div class="card-badge badge-blue">Kinh Doanh</div>
+        <h4 class="analysis-title">Khách hàng & Kênh phân phối</h4>
+        <div class="analysis-content">
+          <p><strong>Khách hàng mục tiêu:</strong> {targetCustomers}</p>
+          <p><strong>Kênh phân phối:</strong> {distributionChannels}</p>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="analysis-card">
+        <div class="card-badge badge-purple">Chiến Lược</div>
+        <h4 class="analysis-title">Lợi thế cạnh tranh & Rào cản</h4>
+        <div class="analysis-content">
+          <p><strong>Lợi thế cạnh tranh:</strong> {competitiveAdvantage}</p>
+          <p><strong>Rào cản gia nhập ngành:</strong> {entryBarriers}</p>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="analysis-card">
+        <div class="card-badge badge-amber">Rủi Ro</div>
+        <h4 class="analysis-title">Rủi ro & Biện pháp phòng ngừa</h4>
+        <div class="analysis-content">
+          <p><strong>Rủi ro hoạt động:</strong> {operationRisks}</p>
+          <p><strong>Biện pháp phòng ngừa:</strong> {riskMitigation}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .business-model-component {
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+  }
+
+  .bm-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section-subtitle {
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid var(--accent-primary);
+    padding-left: 0.75rem;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+  }
+
+  /* Financial Structures bar charts */
+  .financial-structures {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .financial-structures {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .structure-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 1.75rem;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.2s ease;
+  }
+
+  .structure-card:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .card-subtitle {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    color: var(--text-secondary);
+  }
+
+  .bar-chart-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+  }
+
+  .chart-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .label-col {
+    width: 150px;
+    text-align: right;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bar-col {
+    flex-grow: 1;
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+
+  .bar {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .bg-blue { background: var(--accent-gradient); }
+  .bg-emerald { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); }
+
+  .value-col {
+    width: 45px;
+    text-align: left;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+
+  /* Business Analysis Cards */
+  .analysis-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 992px) {
+    .analysis-cards-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .analysis-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 2rem 1.75rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    transition: all 0.3s ease;
+  }
+
+  .analysis-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--accent-primary);
+  }
+
+  .card-badge {
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .badge-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  .badge-purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+  .badge-amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+  .analysis-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: var(--font-display);
+  }
+
+  .analysis-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+
+  .analysis-content p {
+    margin: 0;
+  }
+</style>
