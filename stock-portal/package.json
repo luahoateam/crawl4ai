@@ -11,7 +11,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.5.5",
@@ -19,6 +20,7 @@
     "wrangler": "^4.95.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "vitest": "^4.1.7"
   }
 }
