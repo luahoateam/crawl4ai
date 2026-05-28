@@ -62,6 +62,7 @@ export class CompanyPackEndpoint extends OpenAPIRoute {
             id: item.id,
             title: item.title,
             content: content,
+            sourceUrl: item.source_url || null,
             createdAt: new Date(item.created_at).toISOString(),
           };
         } catch (e) {
@@ -69,6 +70,7 @@ export class CompanyPackEndpoint extends OpenAPIRoute {
             id: item.id,
             title: item.title,
             content: 'Error fetching content from R2',
+            sourceUrl: item.source_url || null,
             createdAt: new Date(item.created_at).toISOString(),
           };
         }

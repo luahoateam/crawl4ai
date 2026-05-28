@@ -19,6 +19,7 @@ interface Props {
   inputs: ValueChainItem[];
   production: ValueChainItem[];
   outputs: ValueChainItem[];
+  others?: string | null;
 }
 
 const { 
@@ -27,25 +28,48 @@ const {
   profitStruct = [], 
   inputs = [], 
   production = [], 
-  outputs = [] 
+  outputs = [],
+  others = null
 } = Astro.props;
 
 // Mock business analysis details based on symbol (resilient, high quality data)
-let targetCustomers = "Đại lý phân phối cấp 1 toàn quốc, nhà thầu xây dựng hạ tầng, các đối tác cơ khí chế tạo lớn.";
-let distributionChannels = "Kênh phân phối trực tiếp (B2B) tới các đại lý lớn và dự án trọng điểm quốc gia, kết hợp bán hàng gián tiếp.";
-let competitiveAdvantage = "Quy mô sản xuất lớn nhất Đông Nam Á giúp tối ưu chi phí cố định (Định phí sản xuất).";
-let entryBarriers = "Yêu cầu vốn đầu tư ban đầu cực lớn (hàng tỷ USD cho lò cao BF), giấy phép môi trường và cảng biển logistics.";
-let operationRisks = "Giá quặng sắt và than cốc biến động mạnh, rủi ro tỷ giá do nguyên liệu chủ yếu nhập khẩu.";
-let riskMitigation = "Sử dụng các hợp đồng phái sinh phòng ngừa rủi ro giá nguyên liệu thế giới, đa dạng hóa thị trường nhập khẩu.";
-
-if (symbol.toUpperCase() === 'HPG') {
-  targetCustomers = "Đại lý thép cấp 1 phủ khắp 63 tỉnh thành, các tổng thầu xây dựng lớn (Coteccons, Hòa Bình), doanh nghiệp cơ khí chế tạo ống thép và tôn mạ, các thị trường xuất khẩu như Mỹ, EU, Nhật Bản, Úc.";
-  distributionChannels = "Kênh phân phối trực tiếp tới các công trình dự án hạ tầng lớn (sân bay Long Thành, cao tốc Bắc-Nam) và kênh đại lý sỉ. Sở hữu cảng nước sâu Dung Quất giúp vận chuyển đường biển nội địa và xuất khẩu tải trọng lớn cực kỳ hiệu quả.";
-  competitiveAdvantage = "Quy mô sản xuất vượt trội (lớn nhất Việt Nam với hơn 8.5 triệu tấn/năm). Hệ thống chuỗi sản xuất khép kín tối ưu từ quặng sắt đến thép thành phẩm. Tự chủ được 80% lượng điện năng nhờ công nghệ tận dụng nhiệt dư lò cao, giúp hạ giá thành sản xuất tối đa.";
-  entryBarriers = "Vốn đầu tư ban đầu siêu khổng lồ (Dự án Dung Quất 2 lên tới 3 tỷ USD). Yêu cầu quỹ đất lớn, cảng nước sâu logistics tự chủ và quy trình thẩm định môi trường cực kỳ khắt khe của Nhà nước đối với ngành công nghiệp nặng.";
-  operationRisks = "Rủi ro biến động giá nguyên liệu thế giới (Quặng sắt từ Úc/Brazil, Than mỡ) chiếm 70% giá thành. Rủi ro về phòng vệ thương mại tại các thị trường xuất khẩu Mỹ/châu Âu. Rủi ro tỷ giá USD/VND đối với dư nợ vay và nhập khẩu nguyên liệu.";
-  riskMitigation = "Ký kết các hợp đồng mua kỳ hạn quặng sắt/than cốc dài hạn với các nhà cung cấp uy tín thế giới (Vale, BHP). Nâng cao tỷ trọng xuất khẩu để tạo nguồn thu ngoại tệ tự nhiên, tự chủ dòng tiền phòng ngừa rủi ro tỷ giá.";
+interface ParsedRow {
+  type: 'highlight' | 'warning' | 'info';
+  label: string;
+  content: string;
 }
+
+const parseOthers = (othersText: string | null | undefined): ParsedRow[] => {
+  if (!othersText) return [];
+  return othersText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.startsWith('-'))
+    .map(line => {
+      let content = line.substring(1).trim();
+      if (content.startsWith('*')) {
+        content = content.substring(1).trim();
+      }
+      
+      let type: 'highlight' | 'warning' | 'info' = 'info';
+      let label = '💡 Phân tích';
+      
+      if (content.includes('📌') || content.toLowerCase().includes('đáng chú ý') || content.toLowerCase().includes('theo dõi')) {
+        type = 'warning';
+        label = '📌 Điểm đáng theo dõi';
+        content = content.replace('📌', '').trim();
+      } else if (content.match(/^\d{4}:/)) {
+        const year = content.match(/^(\d{4}):/)?.[1];
+        type = 'highlight';
+        label = `📊 Hoạt động ${year}`;
+        content = content.replace(/^\d{4}:/, '').trim();
+      }
+      
+      return { type, label, content };
+    });
+};
+
+const parsedRows = parseOthers(others);
 ---
 
 <div class="business-model-component">
@@ -93,40 +117,37 @@ if (symbol.toUpperCase() === 'HPG') {
     </div>
   </div>
 
-  <!-- 3. Business Analysis Cards (Premium Layout) -->
+  <!-- 3. Business Analysis (Real Data Table) -->
   <div class="bm-section">
     <h3 class="section-subtitle">Phân Tích Chi Tiết Hoạt Động</h3>
-    <div class="analysis-cards-grid">
-      <!-- Card 1 -->
-      <div class="analysis-card">
-        <div class="card-badge badge-blue">Kinh Doanh</div>
-        <h4 class="analysis-title">Khách hàng & Kênh phân phối</h4>
-        <div class="analysis-content">
-          <p><strong>Khách hàng mục tiêu:</strong> {targetCustomers}</p>
-          <p><strong>Kênh phân phối:</strong> {distributionChannels}</p>
-        </div>
+    
+    {parsedRows.length > 0 ? (
+      <div class="others-table-container">
+        <table class="others-table">
+          <thead>
+            <tr>
+              <th class="col-label">Chủ đề phân tích</th>
+              <th class="col-content">Nội dung chi tiết thực tế từ báo cáo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parsedRows.map((row) => (
+              <tr class={`row-${row.type}`}>
+                <td class="cell-label">
+                  <span class={`type-badge badge-${row.type}`}>{row.label}</span>
+                </td>
+                <td class="cell-content">{row.content}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <!-- Card 2 -->
-      <div class="analysis-card">
-        <div class="card-badge badge-purple">Chiến Lược</div>
-        <h4 class="analysis-title">Lợi thế cạnh tranh & Rào cản</h4>
-        <div class="analysis-content">
-          <p><strong>Lợi thế cạnh tranh:</strong> {competitiveAdvantage}</p>
-          <p><strong>Rào cản gia nhập ngành:</strong> {entryBarriers}</p>
-        </div>
+    ) : (
+      <div class="empty-state-card">
+        <div class="empty-icon">💡</div>
+        <p class="empty-text">Dữ liệu phân tích hoạt động chi tiết đang được cập nhật và số hóa bằng AI...</p>
       </div>
-
-      <!-- Card 3 -->
-      <div class="analysis-card">
-        <div class="card-badge badge-amber">Rủi Ro</div>
-        <h4 class="analysis-title">Rủi ro & Biện pháp phòng ngừa</h4>
-        <div class="analysis-content">
-          <p><strong>Rủi ro hoạt động:</strong> {operationRisks}</p>
-          <p><strong>Biện pháp phòng ngừa:</strong> {riskMitigation}</p>
-        </div>
-      </div>
-    </div>
+    )}
   </div>
 </div>
 
@@ -232,69 +253,133 @@ if (symbol.toUpperCase() === 'HPG') {
     color: var(--text-primary);
   }
 
-  /* Business Analysis Cards */
-  .analysis-cards-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  @media (min-width: 992px) {
-    .analysis-cards-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  .analysis-card {
-    background: var(--bg-secondary);
+  /* Others Data Table */
+  .others-table-container {
+    width: 100%;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 2rem 1.75rem;
+    border-radius: 16px;
+    background: var(--bg-secondary);
     box-shadow: var(--shadow-sm);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    transition: all 0.3s ease;
   }
 
-  .analysis-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--accent-primary);
+  .others-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
   }
 
-  .card-badge {
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 0.25rem 0.65rem;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .badge-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-  .badge-purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-  .badge-amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-
-  .analysis-title {
-    font-size: 1.15rem;
+  .others-table th {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
     font-weight: 700;
-    color: var(--text-primary);
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
     font-family: var(--font-display);
   }
 
-  .analysis-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: var(--text-secondary);
-    text-align: left;
+  .col-label {
+    width: 220px;
   }
 
-  .analysis-content p {
+  .others-table td {
+    padding: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+    line-height: 1.6;
+  }
+
+  .others-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .cell-label {
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .cell-content {
+    color: var(--text-primary);
+  }
+
+  /* Row Highlights & Badges */
+  .row-highlight {
+    background: rgba(59, 130, 246, 0.02);
+  }
+
+  .row-warning {
+    background: rgba(245, 158, 11, 0.02);
+  }
+
+  .row-info {
+    background: transparent;
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .badge-highlight {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  :global(.dark) .badge-highlight {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+
+  .badge-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+
+  :global(.dark) .badge-warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .badge-info {
+    background: rgba(107, 114, 128, 0.1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+  }
+
+  /* Empty State Card */
+  .empty-state-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: 16px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+  }
+
+  .empty-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    max-width: 400px;
     margin: 0;
   }
 </style>

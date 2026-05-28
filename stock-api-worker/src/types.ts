@@ -26,6 +26,7 @@ export const NewsItemSchema = z.object({
   id: z.number(),
   title: z.string(),
   content: z.string(),
+  sourceUrl: z.string().optional().nullable(),
   createdAt: z.string().optional(),
 });
 

@@ -49,6 +49,16 @@ const totalCount = stats.companies;
 const hoseCount = companies.filter(c => c.exchange === 'HOSE').length || 423;
 const hnxCount = companies.filter(c => c.exchange === 'HNX').length || 342;
 const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
+
+// VN30 Hardcode symbols
+const VN30_SYMBOLS = ['VCB', 'VIC', 'VHM', 'HPG', 'GAS', 'BID', 'CTG', 'MBB', 'TCB', 'ACB', 'MSN', 'VNM', 'SAB', 'VPB', 'STB', 'FPT', 'MWG', 'SSI', 'VRE', 'POW', 'PLX', 'HDB', 'EIB', 'VJC', 'KDH', 'PDR', 'NVL', 'DIG', 'SHB', 'BCM'];
+const vn30Companies = companies
+  .filter(c => VN30_SYMBOLS.includes(c.symbol.toUpperCase()))
+  .sort((a, b) => {
+    const indComp = (a.industry || '').localeCompare(b.industry || '', 'vi');
+    if (indComp !== 0) return indComp;
+    return a.symbol.localeCompare(b.symbol);
+  });
 ---
 
 <Layout title="Stock Portal - Tra cứu doanh nghiệp & Báo cáo tài chính cho AI đọc">
@@ -117,6 +127,23 @@ const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
       </div>
     </section>
 
+    <!-- Banner 10,000+ Hours of Labor -->
+    <section class="py-2">
+      <div class="bg-gradient-to-r from-blue-600/10 via-primary/5 to-emerald-500/10 border border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+        <div class="flex items-center gap-4 text-left">
+          <div class="text-3xl sm:text-4xl">📋</div>
+          <div>
+            <h3 class="text-base font-extrabold text-foreground tracking-tight font-display">
+              Hơn {stats.documents.toLocaleString('vi-VN')} Báo Cáo Tài Chính Đã Được Số Hóa Cho AI Đọc
+            </h3>
+            <p class="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+              Tương đương <strong>10,000+ giờ lao động</strong> nhập liệu thủ công, giúp nhà đầu tư cá nhân dễ dàng tiếp cận sâu sát với tình hình kinh doanh thực tế của doanh nghiệp.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Documents Section (Báo cáo tài chính cho AI đọc) -->
     <section class="flex flex-col gap-6">
       <div class="flex items-center justify-between border-l-4 border-primary pl-4">
@@ -144,7 +171,7 @@ const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
               target="_blank" 
               rel="noopener noreferrer"
             >
-              Xem AI (OCR)
+              Đọc bằng AI
             </a>
           </div>
         ))}
@@ -156,10 +183,50 @@ const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
       </div>
     </section>
 
+    <!-- VN30 Section (Mô hình kinh doanh mặc định nhóm VN30) -->
+    <section class="flex flex-col gap-6">
+      <div class="flex items-center justify-between border-l-4 border-primary pl-4">
+        <div>
+          <h2 class="text-2xl font-bold text-foreground font-display flex items-center gap-2">
+            🏆 Mô Hình Kinh Doanh Nhóm VN30
+          </h2>
+          <p class="text-sm text-muted-foreground mt-1">Chuỗi giá trị và hoạt động của 30 doanh nghiệp niêm yết hàng đầu thị trường Việt Nam.</p>
+        </div>
+        <a href="/companies" class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
+          Xem tất cả ({totalCount}) &rarr;
+        </a>
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {vn30Companies.map((c) => (
+          <div class="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md hover:border-primary transition-all duration-300 transform hover:-translate-y-0.5">
+            <div class="flex flex-col gap-2">
+              <div class="flex justify-between items-start">
+                <span class="font-display font-extrabold text-sm text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg">{c.symbol}</span>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded border border-border text-rose-500 bg-rose-500/5 border-rose-500/20">{c.exchange}</span>
+              </div>
+              <h3 class="text-sm font-bold text-foreground leading-snug tracking-tight mt-1">{c.name}</h3>
+              <span class="text-xs font-semibold text-muted-foreground">{c.industry || 'Chưa phân ngành'}</span>
+            </div>
+            
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              {c.hasBusinessModel && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">CHUỖI GIÁ TRỊ</span>}
+              {c.docCount > 0 && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">BCTC AI</span>}
+              {c.hasResearch && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">SSI RESEARCH</span>}
+            </div>
+            
+            <a href={`/companies/${c.symbol}`} class="w-full bg-muted border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary text-center py-2 rounded-lg text-xs font-bold transition-all duration-200 mt-2 min-h-[38px] flex items-center justify-center">
+              Xem mô hình kinh doanh &rarr;
+            </a>
+          </div>
+        ))}
+      </div>
+    </section>
+
     <!-- Research Feed Section (SSI Research Gated) -->
     <section class="flex flex-col gap-6">
       <div class="flex items-center justify-between border-l-4 border-primary pl-4">
-        <h2 class="text-2xl font-bold text-foreground font-display">Báo Cáo Nghiên Cứu SSI</h2>
+        <h2 class="text-2xl font-bold text-foreground font-display">Nghiên cứu của SSI Research</h2>
         <a href="/research" class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
           Xem tất cả &rarr;
         </a>
@@ -173,7 +240,7 @@ const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
               </span>
               <h3 class="text-base font-bold text-foreground font-display">Báo cáo phân tích chuyên sâu {item.symbol}</h3>
               <p class="text-sm text-muted-foreground leading-relaxed line-clamp-3 min-h-[4.5rem] mt-1">
-                {item.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.'}
+                {item.ssiReview || item.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.'}
               </p>
               <span class="text-xs text-muted-foreground mt-2">
                 Cập nhật: {item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString('vi-VN') : ''}
@@ -187,7 +254,7 @@ const upcomCount = companies.filter(c => c.exchange === 'UPCOM').length || 646;
                   🔒
                 </div>
                 <p class="text-white text-sm font-bold tracking-wide">
-                  Tài liệu Nghiên cứu SSI yêu cầu tài khoản bảo mật.
+                  Tài liệu Nghiên cứu của SSI Research yêu cầu tài khoản bảo mật.
                 </p>
                 <p class="text-slate-400 text-xs max-w-xs">
                   Vui lòng liên hệ Admin Lúa Hóa để được cấp quyền đăng nhập.

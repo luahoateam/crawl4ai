@@ -1,48 +1,68 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { fetchGlobalDocuments } from '../../lib/api';
+import { fetchCompanies } from '../../lib/api';
 
-let docResult = { result: [], pagination: { page: 1, perPage: 30, total: 0 } };
+let companiesWithDocs = [];
 let errorMsg = "";
 
 try {
-  docResult = await fetchGlobalDocuments({ perPage: 30 });
+  const companies = await fetchCompanies();
+  companiesWithDocs = companies
+    .filter(c => c.docCount && c.docCount > 0)
+    .sort((a, b) => {
+      const indComp = (a.industry || '').localeCompare(b.industry || '', 'vi');
+      if (indComp !== 0) return indComp;
+      return a.symbol.localeCompare(b.symbol);
+    });
 } catch (e: any) {
   errorMsg = e.message;
+  const mockCompanies = [
+    { symbol: 'HPG', name: 'Tập đoàn Hòa Phát', exchange: 'HOSE', industry: 'Thép', hasBusinessModel: true, hasResearch: true, docCount: 12 },
+    { symbol: 'HSG', name: 'Tập đoàn Hoa Sen', exchange: 'HOSE', industry: 'Thép', hasBusinessModel: true, hasResearch: false, docCount: 6 },
+    { symbol: 'VCB', name: 'Ngân hàng Vietcombank', exchange: 'HOSE', industry: 'Ngân hàng', hasBusinessModel: true, hasResearch: true, docCount: 15 },
+    { symbol: 'ACB', name: 'Ngân hàng ACB', exchange: 'HNX', industry: 'Ngân hàng', hasBusinessModel: true, hasResearch: true, docCount: 8 },
+    { symbol: 'FPT', name: 'Tập đoàn FPT', exchange: 'HOSE', industry: 'Công nghệ', hasBusinessModel: true, hasResearch: true, docCount: 20 },
+    { symbol: 'MWG', name: 'Thế Giới Di Động', exchange: 'HOSE', industry: 'Bán lẻ', hasBusinessModel: true, hasResearch: true, docCount: 11 },
+    { symbol: 'VNM', name: 'Vinamilk', exchange: 'HOSE', industry: 'Thực phẩm', hasBusinessModel: true, hasResearch: true, docCount: 13 },
+    { symbol: 'VHM', name: 'Vinhomes', exchange: 'HOSE', industry: 'Bất động sản', hasBusinessModel: true, hasResearch: true, docCount: 10 }
+  ];
+  companiesWithDocs = mockCompanies
+    .filter(c => c.docCount && c.docCount > 0)
+    .sort((a, b) => {
+      const indComp = (a.industry || '').localeCompare(b.industry || '', 'vi');
+      if (indComp !== 0) return indComp;
+      return a.symbol.localeCompare(b.symbol);
+    });
 }
 
-const docs = docResult.result || [];
-const pagination = docResult.pagination;
+// Gom nhóm các doanh nghiệp theo Ngành để phân mục rõ ràng
+const groupedCompanies: Record<string, typeof companiesWithDocs> = {};
+companiesWithDocs.forEach(c => {
+  const ind = c.industry || 'Chưa phân ngành';
+  if (!groupedCompanies[ind]) {
+    groupedCompanies[ind] = [];
+  }
+  groupedCompanies[ind].push(c);
+});
 
-// Lấy danh sách các năm duy nhất từ danh sách tài liệu để làm bộ lọc động
-const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
+// Sắp xếp các ngành theo tiếng Việt
+const sortedIndustries = Object.keys(groupedCompanies).sort((a, b) => a.localeCompare(b, 'vi'));
 ---
 
-<Layout title="Tra Cứu Tài Liệu BCTC OCR - Stock Portal">
+<Layout title="Báo Cáo Tài Chính Cho AI Đọc - Stock Portal">
   <div class="container docs-page">
     <div class="page-header">
-      <h1 class="page-title">Tra Cứu Tài Liệu OCR</h1>
-      <p class="page-desc">Tìm kiếm và khai thác dữ liệu từ các báo cáo tài chính đã qua xử lý OCR độ chính xác cao.</p>
+      <h1 class="page-title">Báo Cáo Tài Chính Cho AI Đọc</h1>
+      <p class="page-desc">Danh sách báo cáo tài chính của các doanh nghiệp đã được số hóa định dạng thân thiện với AI, giúp nhà đầu tư dễ dàng tra cứu và phân tích.</p>
     </div>
 
-    <!-- Filter & Search Bar -->
+    <!-- Search Bar (Client-side filter for company symbols & names) -->
     <div class="filter-bar">
       <div class="search-field">
         <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <input type="text" id="doc-search" placeholder="Tìm kiếm tài liệu theo mã, tên file..." autocomplete="off" />
-      </div>
-
-      <div class="select-fields">
-        <div class="select-wrapper">
-          <select id="filter-year" aria-label="Lọc theo Năm">
-            <option value="all">Tất cả các năm</option>
-            {uniqueYears.map(year => (
-              <option value={year}>{year}</option>
-            ))}
-          </select>
-        </div>
+        <input type="text" id="company-search" placeholder="Tìm kiếm doanh nghiệp theo mã hoặc tên..." autocomplete="off" />
       </div>
     </div>
 
@@ -52,63 +72,68 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       </div>
     )}
 
-    <!-- Documents List -->
-    <div class="doc-list" id="doc-list">
-      {docs.map(item => (
-        <div 
-          class="doc-item" 
-          data-symbol={item.symbol} 
-          data-year={item.year}
-          data-filename={item.fileName}
-        >
-          <div class="doc-info-cols">
-            <div class="doc-badge-col">
-              <span class="doc-badge-symbol">
-                <a href={`/companies/${item.symbol}`}>{item.symbol}</a>
-              </span>
-              <span class="doc-badge-label">{item.label || 'Báo cáo'}</span>
-            </div>
-            
-            <div class="doc-detail-col">
-              <h2 class="doc-filename-title">{item.fileName}</h2>
-              <div class="doc-meta-sub">
-                <span class="meta-item">Năm tài chính: <strong>{item.year}</strong></span>
-                <span class="meta-divider">•</span>
-                <span class="meta-item">Ngày cập nhật: {new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
+    <!-- Grouped Companies Accordion List -->
+    <div class="industry-groups-container" id="industry-groups">
+      {sortedIndustries.map(industry => (
+        <div class="industry-group-section mb-6" data-industry={industry}>
+          <h2 class="industry-title flex items-center gap-2 text-base font-extrabold text-foreground mb-3 px-1 font-display">
+            <span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+            {industry}
+          </h2>
+          
+          <div class="companies-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+            {groupedCompanies[industry].map(company => (
+              <div 
+                class="company-card-accordion bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:border-primary/50 transition-all"
+                data-symbol={company.symbol}
+                data-name={company.name}
+              >
+                <!-- Accordion Header -->
+                <button 
+                  class="accordion-header w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-muted/10 cursor-pointer"
+                  data-symbol={company.symbol}
+                  aria-expanded="false"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="symbol-badge font-display font-extrabold text-sm bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-lg">
+                      {company.symbol}
+                    </span>
+                    <div>
+                      <h3 class="text-sm font-bold text-foreground leading-snug">{company.name}</h3>
+                      <span class="text-xs text-muted-foreground">{company.docCount} báo cáo tài chính</span>
+                    </div>
+                  </div>
+                  
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-muted-foreground arrow-icon transition-transform duration-200">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+                
+                <!-- Accordion Content -->
+                <div class="accordion-content hidden border-t border-border/50 bg-muted/5 max-h-0 overflow-hidden transition-all duration-300" id={`accordion-content-${company.symbol}`}>
+                  <div class="doc-sublist p-2" data-loaded="false">
+                    <!-- Loaded dynamically via JS -->
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-
-          <div class="doc-actions-col">
-            <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" class="doc-view-btn">
-              Xem OCR ↗
-            </a>
+            ))}
           </div>
         </div>
       ))}
 
-      {docs.length === 0 && !errorMsg && (
-        <div class="empty-state" id="empty-state">
-          <h3>Chưa có tài liệu nào</h3>
-          <p>Hiện tại hệ thống chưa cập nhật tài liệu OCR nào.</p>
+      {companiesWithDocs.length === 0 && !errorMsg && (
+        <div class="empty-state">
+          <h3>Chưa có dữ liệu</h3>
+          <p>Hiện tại hệ thống chưa cập nhật báo cáo tài chính nào.</p>
         </div>
       )}
     </div>
 
-    <!-- Empty State client side -->
+    <!-- Client-side Empty State -->
     <div class="empty-state" id="client-empty-state" style="display: none;">
-      <h3>Không tìm thấy tài liệu</h3>
-      <p>Thử tìm kiếm với từ khóa hoặc năm khác.</p>
+      <h3>Không tìm thấy doanh nghiệp</h3>
+      <p>Thử tìm kiếm với mã hoặc tên doanh nghiệp khác.</p>
     </div>
-
-    <!-- Load More Button -->
-    {pagination && pagination.total > docs.length && (
-      <div class="pagination-container" id="pagination-container">
-        <button id="load-more-btn" class="btn-load-more" data-page="1" data-perpage="30">
-          Xem thêm tài liệu
-        </button>
-      </div>
-    )}
   </div>
 
   <style>
@@ -130,6 +155,7 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       font-weight: 800;
       letter-spacing: -0.025em;
       margin-bottom: 0.5rem;
+      font-family: var(--font-display);
     }
 
     .page-desc {
@@ -138,11 +164,7 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       max-width: 600px;
     }
 
-    /* Filter Bar Styles */
     .filter-bar {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-radius: 16px;
@@ -150,17 +172,8 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       box-shadow: var(--shadow-sm);
     }
 
-    @media (min-width: 768px) {
-      .filter-bar {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-      }
-    }
-
     .search-field {
       position: relative;
-      flex-grow: 1;
       display: flex;
       align-items: center;
     }
@@ -174,7 +187,7 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       pointer-events: none;
     }
 
-    #doc-search {
+    #company-search {
       width: 100%;
       background: var(--bg-primary);
       border: 1px solid var(--border-color);
@@ -182,195 +195,13 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       padding: 0.75rem 1rem 0.75rem 2.75rem;
       font-size: 0.95rem;
       color: var(--text-primary);
-      font-family: var(--font-sans);
       outline: none;
       transition: all 0.25s ease;
     }
 
-    #doc-search:focus {
+    #company-search:focus {
       border-color: var(--accent-primary);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    .select-fields {
-      display: flex;
-      gap: 1rem;
-      flex-shrink: 0;
-    }
-
-    .select-wrapper {
-      position: relative;
-      min-width: 160px;
-    }
-
-    .select-fields select {
-      width: 100%;
-      appearance: none;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-color);
-      border-radius: 9999px;
-      padding: 0.75rem 2rem 0.75rem 1.25rem;
-      font-size: 0.9rem;
-      font-weight: 500;
-      color: var(--text-primary);
-      font-family: var(--font-sans);
-      outline: none;
-      cursor: pointer;
-      transition: all 0.25s ease;
-    }
-
-    .select-wrapper::after {
-      content: '';
-      position: absolute;
-      right: 1.15rem;
-      top: 50%;
-      transform: translateY(-50%);
-      border: 5px solid transparent;
-      border-top-color: var(--text-muted);
-      pointer-events: none;
-    }
-
-    /* Documents List */
-    .doc-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .doc-item {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.25rem 1.5rem;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 1.25rem;
-      transition: all 0.25s ease;
-      content-visibility: auto;
-      contain-intrinsic-size: 0 120px;
-    }
-
-    @media (min-width: 768px) {
-      .doc-item {
-        flex-direction: row;
-        align-items: center;
-      }
-    }
-
-    .doc-item:hover {
-      transform: translateY(-2px);
-      border-color: var(--accent-primary);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .doc-info-cols {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      flex-grow: 1;
-    }
-
-    @media (min-width: 576px) {
-      .doc-info-cols {
-        flex-direction: row;
-        align-items: flex-start;
-        gap: 1.5rem;
-      }
-    }
-
-    .doc-badge-col {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-shrink: 0;
-    }
-
-    .doc-badge-symbol {
-      font-size: 0.75rem;
-      font-weight: 700;
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-      background: rgba(59, 130, 246, 0.1);
-      color: var(--accent-primary);
-    }
-
-    .doc-badge-symbol a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .doc-badge-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-      border: 1px solid var(--border-color);
-    }
-
-    .doc-detail-col {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    .doc-filename-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0;
-      line-height: 1.4;
-    }
-
-    .doc-meta-sub {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-    }
-
-    .meta-divider {
-      color: var(--border-color);
-    }
-
-    .doc-actions-col {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-    }
-
-    .doc-view-btn {
-      width: 100%;
-      text-align: center;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent-primary);
-      text-decoration: none;
-      padding: 0.5rem 1.25rem;
-      border-radius: 8px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-color);
-      min-height: 44px; /* Touch target >= 44px */
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-
-    @media (min-width: 768px) {
-      .doc-view-btn {
-        width: auto;
-      }
-    }
-
-    .doc-view-btn:hover {
-      background: var(--accent-primary);
-      color: #ffffff;
-      border-color: var(--accent-primary);
     }
 
     .error-banner {
@@ -382,7 +213,6 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       font-weight: 500;
     }
 
-    /* Empty state */
     .empty-state {
       padding: 4rem 1.5rem;
       text-align: center;
@@ -402,32 +232,11 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
       font-size: 0.95rem;
     }
 
-    /* Load more button */
-    .pagination-container {
-      text-align: center;
-      margin-top: 1rem;
-    }
-
-    .btn-load-more {
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border: 1px solid var(--border-color);
-      padding: 0.75rem 2rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border-radius: 9999px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      min-height: 44px;
-    }
-
-    .btn-load-more:hover {
-      background: var(--bg-tertiary);
-      border-color: var(--text-muted);
+    .arrow-icon.rotate-180 {
+      transform: rotate(180deg);
     }
   </style>
 
-  <!-- Client-side Filter & Load More Script -->
   <script is:inline>
     function removeVietnameseTones(str) {
       return str
@@ -438,132 +247,115 @@ const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
         .toLowerCase();
     }
 
-    function debounce(func, wait) {
-      let timeout;
-      return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-      };
-    }
-
     document.addEventListener('DOMContentLoaded', () => {
-      const searchInput = document.getElementById('doc-search');
-      const yearSelect = document.getElementById('filter-year');
-      const items = Array.from(document.querySelectorAll('.doc-item'));
+      const searchInput = document.getElementById('company-search');
+      const companyCards = document.querySelectorAll('.company-card-accordion');
+      const industryGroups = document.querySelectorAll('.industry-group-section');
       const clientEmptyState = document.getElementById('client-empty-state');
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      
-      const applyFilters = () => {
+
+      // 1. Client-side Search Filter
+      const filterCompanies = () => {
         const query = searchInput.value.trim().toLowerCase();
         const normalizedQuery = removeVietnameseTones(query);
-        const year = yearSelect.value;
+        let totalVisible = 0;
 
-        let visibleCount = 0;
-        items.forEach(item => {
-          // Year filter
-          if (year !== 'all' && item.getAttribute('data-year') !== year) {
-            item.style.display = 'none';
-            return;
-          }
+        industryGroups.forEach(group => {
+          let visibleInGroup = 0;
+          const cards = group.querySelectorAll('.company-card-accordion');
 
-          // Search query filter
-          if (query) {
-            const filename = item.getAttribute('data-filename').toLowerCase();
-            const normalizedFilename = removeVietnameseTones(filename);
-            const symbol = item.getAttribute('data-symbol').toLowerCase();
-            
-            if (!filename.includes(query) && !normalizedFilename.includes(normalizedQuery) && !symbol.includes(query)) {
-              item.style.display = 'none';
-              return;
+          cards.forEach(card => {
+            const symbol = card.getAttribute('data-symbol').toLowerCase();
+            const name = card.getAttribute('data-name').toLowerCase();
+            const normalizedName = removeVietnameseTones(name);
+
+            if (symbol.includes(query) || name.includes(query) || normalizedName.includes(normalizedQuery)) {
+              card.style.display = 'block';
+              visibleInGroup++;
+              totalVisible++;
+            } else {
+              card.style.display = 'none';
             }
-          }
+          });
 
-          item.style.display = 'flex';
-          visibleCount++;
+          // Ẩn tiêu đề nhóm ngành nếu không có DN nào thỏa mãn bộ lọc
+          if (visibleInGroup === 0) {
+            group.style.display = 'none';
+          } else {
+            group.style.display = 'block';
+          }
         });
 
-        if (visibleCount === 0 && items.length > 0) {
+        if (totalVisible === 0 && companyCards.length > 0) {
           clientEmptyState.style.display = 'block';
         } else {
           clientEmptyState.style.display = 'none';
         }
       };
 
-      searchInput.addEventListener('input', debounce(applyFilters, 250));
-      yearSelect.addEventListener('change', applyFilters);
+      searchInput.addEventListener('input', () => {
+        filterCompanies();
+      });
 
-      // Load More Client-side (For simulated demonstration)
-      if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', async () => {
-          const currentPage = parseInt(loadMoreBtn.getAttribute('data-page'), 10);
-          const perPage = parseInt(loadMoreBtn.getAttribute('data-perpage'), 10);
-          const nextPage = currentPage + 1;
+      // 2. Accordion dynamic loading
+      const accordionHeaders = document.querySelectorAll('.accordion-header');
+      
+      accordionHeaders.forEach(header => {
+        header.addEventListener('click', async () => {
+          const symbol = header.getAttribute('data-symbol');
+          const contentEl = document.getElementById(`accordion-content-${symbol}`);
+          const isExpanded = header.getAttribute('aria-expanded') === 'true';
+          const arrow = header.querySelector('.arrow-icon');
           
-          try {
-            loadMoreBtn.textContent = 'Đang tải...';
-            loadMoreBtn.disabled = true;
-
-            const response = await fetch(`/api/documents?page=${nextPage}&per_page=${perPage}`);
-            const data = await response.json();
-
-            if (data.success && data.result.length > 0) {
-              const docList = document.getElementById('doc-list');
+          if (isExpanded) {
+            header.setAttribute('aria-expanded', 'false');
+            contentEl.classList.add('hidden');
+            contentEl.style.maxHeight = '0px';
+            arrow.classList.remove('rotate-180');
+          } else {
+            header.setAttribute('aria-expanded', 'true');
+            contentEl.classList.remove('hidden');
+            contentEl.style.maxHeight = '2000px'; // Allow expansion for many items
+            arrow.classList.add('rotate-180');
+            
+            // Check if already loaded
+            const listEl = contentEl.querySelector('.doc-sublist');
+            if (listEl.getAttribute('data-loaded') === 'false') {
+              listEl.innerHTML = '<div class="loading-state py-4 text-xs text-muted-foreground text-center">Đang tải báo cáo tài chính...</div>';
               
-              data.result.forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'doc-item';
-                itemDiv.setAttribute('data-symbol', item.symbol);
-                itemDiv.setAttribute('data-year', item.year);
-                itemDiv.setAttribute('data-filename', item.fileName);
+              try {
+                const response = await fetch(`/api/documents?symbol=${symbol}&per_page=50`);
+                const data = await response.json();
                 
-                itemDiv.innerHTML = `
-                  <div class="doc-info-cols">
-                    <div class="doc-badge-col">
-                      <span class="doc-badge-symbol">
-                        <a href="/companies/${item.symbol}">${item.symbol}</a>
-                      </span>
-                      <span class="doc-badge-label">${item.label || 'Báo cáo'}</span>
-                    </div>
-                    
-                    <div class="doc-detail-col">
-                      <h2 class="doc-filename-title">${item.fileName}</h2>
-                      <div class="doc-meta-sub">
-                        <span class="meta-item">Năm tài chính: <strong>${item.year}</strong></span>
-                        <span class="meta-divider">•</span>
-                        <span class="meta-item">Ngày cập nhật: ${new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
+                if (data.success && data.result.length > 0) {
+                  listEl.innerHTML = '';
+                  
+                  data.result.forEach(doc => {
+                    const li = document.createElement('div');
+                    li.className = 'sublist-item flex items-center justify-between p-3 border-b border-border/40 last:border-b-0 hover:bg-muted/10 transition-colors';
+                    li.innerHTML = `
+                      <div class="flex flex-col gap-0.5">
+                        <span class="text-sm font-semibold text-foreground leading-snug">${doc.fileName}</span>
+                        <span class="text-xs text-muted-foreground">Năm tài chính: ${doc.year} ${doc.label ? `• ${doc.label}` : ''}</span>
                       </div>
-                    </div>
-                  </div>
-
-                  <div class="doc-actions-col">
-                    <a href="${item.fileUrl}" target="_blank" rel="noopener noreferrer" class="doc-view-btn">
-                      Xem OCR ↗
-                    </a>
-                  </div>
-                `;
-                
-                docList.appendChild(itemDiv);
-                items.push(itemDiv); // Add to active items array for client filters
-              });
-
-              loadMoreBtn.setAttribute('data-page', String(nextPage));
-              
-              if (data.result.length < perPage || (nextPage * perPage) >= data.pagination.total) {
-                loadMoreBtn.parentElement.style.display = 'none';
-              } else {
-                loadMoreBtn.textContent = 'Xem thêm tài liệu';
-                loadMoreBtn.disabled = false;
+                      <a href="${doc.fileUrl}" target="_blank" rel="noopener noreferrer" class="read-ai-btn text-xs font-bold text-primary border border-primary/20 px-3.5 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all min-h-[38px] flex items-center justify-center whitespace-nowrap">
+                        Đọc bằng AI →
+                      </a>
+                    `;
+                    listEl.appendChild(li);
+                  });
+                  
+                  listEl.setAttribute('data-loaded', 'true');
+                } else {
+                  listEl.innerHTML = '<div class="py-4 text-xs text-muted-foreground text-center">Không tìm thấy báo cáo nào.</div>';
+                }
+              } catch (e) {
+                console.error(e);
+                listEl.innerHTML = '<div class="py-4 text-xs text-red-500 text-center">Lỗi tải dữ liệu. Vui lòng thử lại.</div>';
               }
-            } else {
-              loadMoreBtn.parentElement.style.display = 'none';
             }
-          } catch (e) {
-            console.error('Failed to load more documents:', e);
-            loadMoreBtn.textContent = 'Thử lại';
-            loadMoreBtn.disabled = false;
           }
         });
-      }
+      });
     });
   </script>
 </Layout>

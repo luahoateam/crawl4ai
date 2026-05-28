@@ -119,29 +119,15 @@ try {
       </div>
       <p class="text-sm text-muted-foreground leading-relaxed mt-2">{pack.company.description || 'Chưa có mô tả chi tiết cho doanh nghiệp này.'}</p>
       
-      <!-- Link phụ Website chính chủ của DN (Yêu cầu trọng tâm nghiệp vụ) -->
-      <div class="flex items-center gap-2 text-xs font-semibold text-muted-foreground mt-2 border-t border-border/50 pt-3">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-primary">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-        </svg>
-        <a 
-          href={pack.company.symbol.toUpperCase() === 'HPG' ? 'https://www.hoaphat.com.vn' : 'https://google.com/search?q=' + encodeURIComponent(pack.company.name + ' website chính thức')} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          class="text-primary hover:underline transition-all"
-        >
-          Thông tin thêm từ website chính chủ của doanh nghiệp
-        </a>
-      </div>
+
     </div>
 
     <!-- Navigation Tabs -->
     <div class="flex flex-col gap-6">
       <div class="flex border-b border-border gap-2 overflow-x-auto pb-0.5" role="tablist">
         <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger active" data-tab="business-model" role="tab">Mô hình kinh doanh</button>
-        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="news" role="tab">Tin tức ({pack.news.length})</button>
-        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="documents" role="tab">Tài liệu ({pack.documents.length})</button>
-        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="daily-research" role="tab">Nghiên cứu SSI ({pack.dailyResearch.length})</button>
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="documents" role="tab">Báo cáo tài chính ({pack.documents.length})</button>
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="daily-research" role="tab">Nghiên cứu của SSI Research ({pack.dailyResearch.length})</button>
       </div>
 
       <!-- Tab Content Panels -->
@@ -155,37 +141,52 @@ try {
             inputs={pack.businessModel.inputs}
             production={pack.businessModel.production}
             outputs={pack.businessModel.outputs}
+            others={pack.businessModel.others}
           />
-        </div>
 
-        <!-- 2. News Panel -->
-        <div class="hidden tab-panel" id="news" role="tabpanel">
-          <div class="flex flex-col gap-4">
-            <h2 class="text-lg font-bold text-foreground pl-1">Tin tức cập nhật doanh nghiệp</h2>
+          <!-- Section website chính chủ lấy từ DB news -->
+          <div class="mt-8 border-t border-border pt-6">
+            <h3 class="text-base font-bold text-foreground mb-4 flex items-center gap-2 font-display">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4.5 h-4.5 text-primary">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+              </svg>
+              Thông tin thêm từ website chính chủ của doanh nghiệp
+            </h3>
             {pack.news.length === 0 ? (
-              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có tin tức nào mới nhất cho doanh nghiệp này.</div>
+              <p class="text-xs text-muted-foreground italic pl-1">Không có tin tức liên kết nào từ website chính thức.</p>
             ) : (
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pack.news.map(item => (
-                  <div class="bg-card border border-border rounded-xl p-5 flex flex-col gap-2 hover:border-primary transition-all duration-200">
-                    <div class="flex justify-between items-center text-xs text-muted-foreground">
-                      <span class="font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{item.source}</span>
-                      <span>{item.publishedAt}</span>
+              <ul class="space-y-2.5 pl-1">
+                {pack.news.map((item: any) => (
+                  <li class="flex items-start gap-2 text-sm">
+                    <span class="text-primary mt-1">•</span>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        class="text-primary hover:underline font-medium leading-relaxed"
+                      >
+                        {item.title}
+                      </a>
+                      <span class="text-[10px] bg-muted border border-border px-2 py-0.5 rounded font-semibold text-muted-foreground self-start sm:self-center whitespace-nowrap">
+                        {item.source} • {new Date(item.publishedAt).toLocaleDateString('vi-VN')}
+                      </span>
                     </div>
-                    <h3 class="text-sm font-semibold text-foreground leading-snug">{item.title}</h3>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </div>
 
+
+
         <!-- 3. Documents Panel -->
         <div class="hidden tab-panel" id="documents" role="tabpanel">
           <div class="flex flex-col gap-4">
-            <h2 class="text-lg font-bold text-foreground pl-1">Tài liệu tài chính & Công báo thông tin</h2>
+            <h2 class="text-lg font-bold text-foreground pl-1">Báo cáo tài chính cho AI đọc</h2>
             {pack.documents.length === 0 ? (
-              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có tài liệu công bố nào cho doanh nghiệp này.</div>
+              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có báo cáo tài chính nào cho doanh nghiệp này.</div>
             ) : (
               <div class="flex flex-col gap-3">
                 {pack.documents.map(item => (
@@ -202,7 +203,7 @@ try {
                       </div>
                     </div>
                     <a href={item.url} class="bg-muted hover:bg-primary hover:text-primary-foreground text-foreground px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 min-h-[44px] flex items-center justify-center" target="_blank">
-                      Tải {item.type}
+                      Đọc bằng AI
                     </a>
                   </div>
                 ))}
@@ -214,7 +215,7 @@ try {
         <!-- 4. Daily Research Panel (GATED!) -->
         <div class="hidden tab-panel" id="daily-research" role="tabpanel">
           <div class="flex flex-col gap-4 relative">
-            <h2 class="text-lg font-bold text-foreground pl-1">Nghiên Cứu Hàng Ngày & Phân Tích Chuyên Sâu</h2>
+            <h2 class="text-lg font-bold text-foreground pl-1">Nghiên cứu của SSI Research</h2>
             
             {isGated ? (
               <div class="relative rounded-2xl overflow-hidden border border-border p-4 bg-muted/20">
@@ -235,7 +236,7 @@ try {
                     🔒
                   </div>
                   <h3 class="lock-title text-white text-base font-bold tracking-wide">Nội Dung Bị Giới Hạn</h3>
-                  <p class="text-slate-400 text-xs max-w-sm leading-relaxed px-4">Daily Research chỉ dành riêng cho hội viên Lúa Hóa Team. Vui lòng đăng nhập để xem báo cáo phân tích chi tiết của mã {pack.company.symbol}.</p>
+                  <p class="text-slate-400 text-xs max-w-sm leading-relaxed px-4">Báo cáo nghiên cứu của SSI Research chỉ dành riêng cho hội viên Lúa Hóa Team. Vui lòng đăng nhập để xem báo cáo phân tích chi tiết của mã {pack.company.symbol}.</p>
                   <a href="/login" class="btn-login-cta mt-2 bg-gradient-to-r from-primary to-blue-600 text-white font-bold text-sm px-6 py-2.5 rounded-full shadow-lg hover:shadow-primary/30 hover:scale-105 transition-all duration-200 min-h-[44px] flex items-center justify-center">Đăng nhập tài khoản hội viên</a>
                 </div>
               </div>
@@ -250,8 +251,9 @@ try {
                       <span>{item.publishedAt}</span>
                     </div>
                     <h3 class="text-base font-bold text-foreground font-display">{item.title}</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">{item.summary}</p>
-                    <a href={item.url} class="text-xs font-bold text-primary hover:underline mt-2 self-start flex items-center gap-1">Đọc toàn bộ báo cáo &rarr;</a>
+                    <div class="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {item.ssiReview || item.summary}
+                    </div>
                   </div>
                 ))}
               </div>

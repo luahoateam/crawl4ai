@@ -6,11 +6,16 @@ let companies = [];
 let errorMsg = "";
 
 try {
-  companies = await fetchCompanies();
+  const rawCompanies = await fetchCompanies();
+  companies = rawCompanies.sort((a, b) => {
+    const indComp = (a.industry || '').localeCompare(b.industry || '', 'vi');
+    if (indComp !== 0) return indComp;
+    return a.symbol.localeCompare(b.symbol);
+  });
 } catch (e: any) {
   errorMsg = e.message;
   // Premium fallback mock data
-  companies = [
+  const mockCompanies = [
     { symbol: 'HPG', name: 'Tập đoàn Hòa Phát', exchange: 'HOSE', industry: 'Thép', hasBusinessModel: true, hasResearch: true, docCount: 12 },
     { symbol: 'HSG', name: 'Tập đoàn Hoa Sen', exchange: 'HOSE', industry: 'Thép', hasBusinessModel: true, hasResearch: false, docCount: 6 },
     { symbol: 'NKG', name: 'Thép Nam Kim', exchange: 'HOSE', industry: 'Thép', hasBusinessModel: true, hasResearch: false, docCount: 4 },
@@ -29,10 +34,15 @@ try {
     { symbol: 'VIC', name: 'Tập đoàn Vingroup', exchange: 'HOSE', industry: 'Bất động sản', hasBusinessModel: false, hasResearch: false, docCount: 8 },
     { symbol: 'VHM', name: 'Vinhomes', exchange: 'HOSE', industry: 'Bất động sản', hasBusinessModel: true, hasResearch: true, docCount: 10 }
   ];
+  companies = mockCompanies.sort((a, b) => {
+    const indComp = (a.industry || '').localeCompare(b.industry || '', 'vi');
+    if (indComp !== 0) return indComp;
+    return a.symbol.localeCompare(b.symbol);
+  });
 }
 
 // Generate unique list of industries for filtering
-const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].sort();
+const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
 ---
 
 <Layout title="Mô hình kinh doanh & Chuỗi giá trị - Stock Portal">

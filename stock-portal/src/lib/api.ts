@@ -18,6 +18,7 @@ export interface BusinessModel {
   inputs?: any[];
   production?: any[];
   outputs?: any[];
+  others?: string | null;
 }
 
 export interface NewsItem {
@@ -42,6 +43,7 @@ export interface DailyResearchItem {
   url: string;
   publishedAt: string;
   summary?: string;
+  ssiReview?: string | null;
 }
 
 export interface CompanyPack {
@@ -175,7 +177,8 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
       profitStruct: parseJsonField(bizModel.profitStruct),
       inputs: parseJsonField(bizModel.inputs),
       production: parseJsonField(bizModel.production),
-      outputs: parseJsonField(bizModel.outputs)
+      outputs: parseJsonField(bizModel.outputs),
+      others: bizModel.others || null
     },
     news: (result.news || []).map((item: any) => ({
       id: item.id,
@@ -197,7 +200,8 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
         title: `Báo cáo phân tích chuyên sâu ${symbol.toUpperCase()}`,
         url: '#',
         publishedAt: result.research.lastUpdated || new Date().toISOString(),
-        summary: result.research.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.'
+        summary: result.research.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.',
+        ssiReview: result.research.ssiReview || null
       }
     ] : []
   };
