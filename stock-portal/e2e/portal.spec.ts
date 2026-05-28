@@ -69,7 +69,7 @@ test.describe('Stock Portal E2E Tests', () => {
   });
 
   test('should persist light/dark theme preference', async ({ page }) => {
-    const themeToggle = page.locator('#theme-toggle');
+    const themeToggle = page.locator('.theme-toggle').first();
     const htmlElement = page.locator('html');
     
     const initialTheme = await htmlElement.getAttribute('data-theme');
@@ -81,5 +81,14 @@ test.describe('Stock Portal E2E Tests', () => {
     await page.reload();
     const persistedTheme = await htmlElement.getAttribute('data-theme');
     expect(persistedTheme).toBe(toggledTheme);
+  });
+
+  test('should render Lua Hoa brand logo and title correctly', async ({ page }) => {
+    const logoImg = page.locator('img[alt="Logo Lúa Hóa"]');
+    await expect(logoImg).toBeVisible();
+    await expect(logoImg).toHaveAttribute('src', '/logo.png');
+
+    const logoText = page.locator('span:has-text("LÚA HÓA")');
+    await expect(logoText).toBeVisible();
   });
 });

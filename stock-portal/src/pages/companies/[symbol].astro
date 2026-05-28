@@ -16,7 +16,6 @@ let isGated = true;
 // Check JWT token from cookie at SSR level for high security Gating
 const token = Astro.cookies.get('token')?.value;
 if (token) {
-  // Currently simplify JWT check before Phase 3 Auth integration is fully completed
   isGated = false;
 }
 
@@ -94,46 +93,61 @@ try {
 ---
 
 <Layout title={`${pack.company.symbol} - Chi tiết doanh nghiệp`}>
-  <div class="container company-details-page">
+  <div class="flex flex-col gap-6 py-2">
     <!-- Back button -->
-    <a href="/companies" class="btn-back">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" width="16" height="16">
+    <a href="/companies" class="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors min-h-[44px] self-start">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
       </svg>
       Quay lại danh sách
     </a>
 
     <!-- Company header -->
-    <div class="company-header-card">
-      <div class="header-main">
-        <div class="header-left">
-          <span class="symbol-badge">{pack.company.symbol}</span>
-          <div class="title-area">
-            <h1 class="company-name">{pack.company.name}</h1>
-            <div class="meta-row">
-              <span class={`badge-exchange ${pack.company.exchange}`}>{pack.company.exchange}</span>
-              <span class="meta-separator">|</span>
-              <span class="industry-text">{pack.company.industry || 'Chưa phân ngành'}</span>
+    <div class="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div class="flex items-center gap-4">
+          <span class="symbol-badge font-display font-extrabold text-3xl bg-gradient-to-r from-primary to-blue-600 text-white px-4 py-2 rounded-xl shadow-md tracking-tight">{pack.company.symbol}</span>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">{pack.company.name}</h1>
+            <div class="flex items-center gap-2 mt-1">
+              <span class={`text-[10px] font-extrabold px-2 py-0.5 rounded border border-border ${pack.company.exchange === 'HOSE' ? 'text-rose-500 bg-rose-500/5 border-rose-500/20' : pack.company.exchange === 'HNX' ? 'text-blue-500 bg-blue-500/5 border-blue-500/20' : 'text-slate-500'}`}>{pack.company.exchange}</span>
+              <span class="text-muted-foreground/40 text-xs">|</span>
+              <span class="text-xs font-semibold text-muted-foreground">{pack.company.industry || 'Chưa phân ngành'}</span>
             </div>
           </div>
         </div>
       </div>
-      <p class="company-desc">{pack.company.description || 'Chưa có mô tả chi tiết cho doanh nghiệp này.'}</p>
+      <p class="text-sm text-muted-foreground leading-relaxed mt-2">{pack.company.description || 'Chưa có mô tả chi tiết cho doanh nghiệp này.'}</p>
+      
+      <!-- Link phụ Website chính chủ của DN (Yêu cầu trọng tâm nghiệp vụ) -->
+      <div class="flex items-center gap-2 text-xs font-semibold text-muted-foreground mt-2 border-t border-border/50 pt-3">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-primary">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+        </svg>
+        <a 
+          href={pack.company.symbol.toUpperCase() === 'HPG' ? 'https://www.hoaphat.com.vn' : 'https://google.com/search?q=' + encodeURIComponent(pack.company.name + ' website chính thức')} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="text-primary hover:underline transition-all"
+        >
+          Thông tin thêm từ website chính chủ của doanh nghiệp
+        </a>
+      </div>
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="tabs-container">
-      <div class="tabs-list" role="tablist">
-        <button class="tab-trigger active" data-tab="business-model" role="tab">Mô hình kinh doanh</button>
-        <button class="tab-trigger" data-tab="news" role="tab">Tin tức ({pack.news.length})</button>
-        <button class="tab-trigger" data-tab="documents" role="tab">Tài liệu ({pack.documents.length})</button>
-        <button class="tab-trigger" data-tab="daily-research" role="tab">Daily Research ({pack.dailyResearch.length})</button>
+    <div class="flex flex-col gap-6">
+      <div class="flex border-b border-border gap-2 overflow-x-auto pb-0.5" role="tablist">
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger active" data-tab="business-model" role="tab">Mô hình kinh doanh</button>
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="news" role="tab">Tin tức ({pack.news.length})</button>
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="documents" role="tab">Tài liệu ({pack.documents.length})</button>
+        <button class="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-[2px] transition-all cursor-pointer tab-trigger" data-tab="daily-research" role="tab">Nghiên cứu SSI ({pack.dailyResearch.length})</button>
       </div>
 
       <!-- Tab Content Panels -->
-      <div class="tab-panels">
+      <div class="relative">
         <!-- 1. Business Model Panel -->
-        <div class="tab-panel active" id="business-model" role="tabpanel">
+        <div class="hidden tab-panel" id="business-model" role="tabpanel">
           <BusinessModel
             symbol={pack.company.symbol}
             revenueStruct={pack.businessModel.revenueStruct}
@@ -145,20 +159,20 @@ try {
         </div>
 
         <!-- 2. News Panel -->
-        <div class="tab-panel" id="news" role="tabpanel">
-          <div class="news-section">
-            <h2>Tin tức cập nhật doanh nghiệp</h2>
+        <div class="hidden tab-panel" id="news" role="tabpanel">
+          <div class="flex flex-col gap-4">
+            <h2 class="text-lg font-bold text-foreground pl-1">Tin tức cập nhật doanh nghiệp</h2>
             {pack.news.length === 0 ? (
-              <div class="panel-empty">Chưa có tin tức nào mới nhất cho doanh nghiệp này.</div>
+              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có tin tức nào mới nhất cho doanh nghiệp này.</div>
             ) : (
-              <div class="news-list">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {pack.news.map(item => (
-                  <div class="news-card">
-                    <div class="news-meta">
-                      <span class="news-source">{item.source}</span>
-                      <span class="news-date">{item.publishedAt}</span>
+                  <div class="bg-card border border-border rounded-xl p-5 flex flex-col gap-2 hover:border-primary transition-all duration-200">
+                    <div class="flex justify-between items-center text-xs text-muted-foreground">
+                      <span class="font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{item.source}</span>
+                      <span>{item.publishedAt}</span>
                     </div>
-                    <h3 class="news-title">{item.title}</h3>
+                    <h3 class="text-sm font-semibold text-foreground leading-snug">{item.title}</h3>
                   </div>
                 ))}
               </div>
@@ -167,27 +181,27 @@ try {
         </div>
 
         <!-- 3. Documents Panel -->
-        <div class="tab-panel" id="documents" role="tabpanel">
-          <div class="documents-section">
-            <h2>Tài liệu tài chính & Công bố thông tin</h2>
+        <div class="hidden tab-panel" id="documents" role="tabpanel">
+          <div class="flex flex-col gap-4">
+            <h2 class="text-lg font-bold text-foreground pl-1">Tài liệu tài chính & Công báo thông tin</h2>
             {pack.documents.length === 0 ? (
-              <div class="panel-empty">Chưa có tài liệu công bố nào cho doanh nghiệp này.</div>
+              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có tài liệu công bố nào cho doanh nghiệp này.</div>
             ) : (
-              <div class="documents-list">
+              <div class="flex flex-col gap-3">
                 {pack.documents.map(item => (
-                  <div class="doc-card">
-                    <div class="doc-left">
-                      <div class="doc-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
+                  <div class="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-4 hover:border-primary transition-all duration-200">
+                    <div class="flex items-center gap-3">
+                      <div class="p-2 bg-primary/10 text-primary rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                       </div>
-                      <div class="doc-info">
-                        <h3 class="doc-title">{item.title}</h3>
-                        <span class="doc-date">Công bố ngày: {item.publishedAt}</span>
+                      <div class="flex flex-col gap-0.5">
+                        <h3 class="text-sm font-semibold text-foreground leading-snug">{item.title}</h3>
+                        <span class="text-xs text-muted-foreground">Công bố ngày: {item.publishedAt}</span>
                       </div>
                     </div>
-                    <a href={item.url} class="btn-download" target="_blank">
+                    <a href={item.url} class="bg-muted hover:bg-primary hover:text-primary-foreground text-foreground px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 min-h-[44px] flex items-center justify-center" target="_blank">
                       Tải {item.type}
                     </a>
                   </div>
@@ -198,48 +212,46 @@ try {
         </div>
 
         <!-- 4. Daily Research Panel (GATED!) -->
-        <div class="tab-panel" id="daily-research" role="tabpanel">
-          <div class="daily-research-section">
-            <h2>Nghiên Cứu Hàng Ngày & Phân Tích Chuyên Sâu</h2>
+        <div class="hidden tab-panel" id="daily-research" role="tabpanel">
+          <div class="flex flex-col gap-4 relative">
+            <h2 class="text-lg font-bold text-foreground pl-1">Nghiên Cứu Hàng Ngày & Phân Tích Chuyên Sâu</h2>
             
             {isGated ? (
-              <div class="gated-overlay-container">
-                <div class="gated-blur-content">
-                  <div class="research-card-dummy">
-                    <h3>Báo cáo chu kỳ ngành thép và lợi nhuận HPG</h3>
-                    <p>Phân tích chi tiết biến động giá và sản lượng xuất khẩu quý mới nhất...</p>
+              <div class="relative rounded-2xl overflow-hidden border border-border p-4 bg-muted/20">
+                <div class="filter blur-md pointer-events-none select-none flex flex-col gap-4">
+                  <div class="bg-card border border-border rounded-xl p-5 flex flex-col gap-2">
+                    <h3 class="text-base font-bold text-foreground font-display">Báo cáo chu kỳ ngành thép và lợi nhuận HPG</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Phân tích chi tiết biến động giá và sản lượng xuất khẩu quý mới nhất...</p>
                   </div>
-                  <div class="research-card-dummy">
-                    <h3>Cập nhật Dung Quất 2 và triển vọng sản lượng</h3>
-                    <p>Đánh giá dự án lò cao số 1 và công suất dự kiến trong 12 tháng tới...</p>
+                  <div class="bg-card border border-border rounded-xl p-5 flex flex-col gap-2">
+                    <h3 class="text-base font-bold text-foreground font-display">Cập nhật Dung Quất 2 và triển vọng sản lượng</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Đánh giá dự án lò cao số 1 và công suất dự kiến trong 12 tháng tới...</p>
                   </div>
                 </div>
 
                 <!-- Gated Blur Overlay Interface -->
-                <div class="gated-lock-overlay">
-                  <div class="lock-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="36" height="36">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                    </svg>
+                <div class="gated-lock-overlay absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center gap-3 p-6 text-center z-10">
+                  <div class="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center text-xl font-bold shadow-md border border-primary/30">
+                    🔒
                   </div>
-                  <h3 class="lock-title">Nội Dung Bị Giới Hạn</h3>
-                  <p class="lock-desc">Daily Research chỉ dành riêng cho hội viên Lúa Hóa Team. Vui lòng đăng nhập để xem báo cáo phân tích chi tiết của mã {pack.company.symbol}.</p>
-                  <a href="/login" class="btn-login-cta">Đăng nhập bằng tài khoản hội viên</a>
+                  <h3 class="lock-title text-white text-base font-bold tracking-wide">Nội Dung Bị Giới Hạn</h3>
+                  <p class="text-slate-400 text-xs max-w-sm leading-relaxed px-4">Daily Research chỉ dành riêng cho hội viên Lúa Hóa Team. Vui lòng đăng nhập để xem báo cáo phân tích chi tiết của mã {pack.company.symbol}.</p>
+                  <a href="/login" class="btn-login-cta mt-2 bg-gradient-to-r from-primary to-blue-600 text-white font-bold text-sm px-6 py-2.5 rounded-full shadow-lg hover:shadow-primary/30 hover:scale-105 transition-all duration-200 min-h-[44px] flex items-center justify-center">Đăng nhập tài khoản hội viên</a>
                 </div>
               </div>
             ) : pack.dailyResearch.length === 0 ? (
-              <div class="panel-empty">Chưa có báo cáo nghiên cứu nào cho doanh nghiệp này.</div>
+              <div class="py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">Chưa có báo cáo nghiên cứu nào cho doanh nghiệp này.</div>
             ) : (
-              <div class="research-list">
+              <div class="flex flex-col gap-4">
                 {pack.dailyResearch.map(item => (
-                  <div class="research-card">
-                    <div class="research-header">
-                      <span class="research-tag">CHUYÊN SÂU</span>
-                      <span class="research-date">{item.publishedAt}</span>
+                  <div class="research-card bg-card border border-border rounded-xl p-5 flex flex-col gap-3 hover:border-primary transition-all duration-200">
+                    <div class="flex justify-between items-center text-xs text-muted-foreground">
+                      <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 uppercase tracking-wider">CHUYÊN SÂU</span>
+                      <span>{item.publishedAt}</span>
                     </div>
-                    <h3 class="research-title">{item.title}</h3>
-                    <p class="research-summary">{item.summary}</p>
-                    <a href={item.url} class="btn-read-more">Đọc toàn bộ báo cáo &rarr;</a>
+                    <h3 class="text-base font-bold text-foreground font-display">{item.title}</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">{item.summary}</p>
+                    <a href={item.url} class="text-xs font-bold text-primary hover:underline mt-2 self-start flex items-center gap-1">Đọc toàn bộ báo cáo &rarr;</a>
                   </div>
                 ))}
               </div>
@@ -249,697 +261,59 @@ try {
       </div>
     </div>
   </div>
-
-  <style>
-    .company-details-page {
-      display: flex;
-      flex-direction: column;
-      gap: 1.75rem;
-      padding-top: 1rem;
-      padding-bottom: 5rem;
-    }
-
-    .btn-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      align-self: flex-start;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-      transition: color 0.2s ease;
-    }
-
-    .btn-back:hover {
-      color: var(--accent-primary);
-    }
-
-    /* Company header card styling */
-    .company-header-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 2rem;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .header-main {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 1.5rem;
-    }
-
-    .symbol-badge {
-      font-family: var(--font-display);
-      font-size: 1.85rem;
-      font-weight: 800;
-      background: var(--accent-gradient);
-      color: white;
-      padding: 0.75rem 1.5rem;
-      border-radius: 16px;
-      letter-spacing: -0.01em;
-      box-shadow: var(--shadow-md);
-    }
-
-    .company-name {
-      font-size: 1.5rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: var(--text-primary);
-      margin-bottom: 0.25rem;
-    }
-
-    @media (min-width: 768px) {
-      .company-name {
-        font-size: 1.85rem;
-      }
-    }
-
-    .meta-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .badge-exchange {
-      font-size: 0.75rem;
-      font-weight: 700;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      background: var(--bg-tertiary);
-      color: var(--text-muted);
-      border: 1px solid var(--border-color);
-    }
-
-    .badge-exchange.HOSE {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
-      border-color: rgba(239, 68, 68, 0.2);
-    }
-
-    .badge-exchange.HNX {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
-      border-color: rgba(59, 130, 246, 0.2);
-    }
-
-    .badge-exchange.UPCOM {
-      background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
-      border-color: rgba(245, 158, 11, 0.2);
-    }
-
-    .meta-separator {
-      color: var(--border-color);
-      font-weight: 300;
-    }
-
-    .industry-text {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .company-desc {
-      color: var(--text-secondary);
-      font-size: 0.95rem;
-      line-height: 1.6;
-    }
-
-    /* Tabs list styles */
-    .tabs-container {
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
-    .tabs-list {
-      display: flex;
-      border-bottom: 2px solid var(--border-color);
-      gap: 1rem;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
-
-    .tab-trigger {
-      background: transparent;
-      border: none;
-      padding: 0.85rem 1.25rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-      cursor: pointer;
-      position: relative;
-      white-space: nowrap;
-      transition: color 0.2s ease;
-    }
-
-    .tab-trigger:hover {
-      color: var(--accent-primary);
-    }
-
-    .tab-trigger.active {
-      color: var(--accent-primary);
-    }
-
-    .tab-trigger.active::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: var(--accent-gradient);
-    }
-
-    /* Tab panels */
-    .tab-panel {
-      display: none;
-      animation: fadeIn 0.25s ease-out;
-    }
-
-    .tab-panel.active {
-      display: block;
-    }
-
-    .panel-empty {
-      padding: 3rem 1.5rem;
-      text-align: center;
-      background: var(--bg-secondary);
-      border: 1px dashed var(--border-color);
-      border-radius: 16px;
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      font-weight: 500;
-    }
-
-    /* 1. Value Chain / Business Model Styles */
-    .business-model-section {
-      display: flex;
-      flex-direction: column;
-      gap: 2.5rem;
-    }
-
-    .bm-header h2 {
-      font-size: 1.5rem;
-      font-weight: 800;
-      margin-bottom: 0.25rem;
-    }
-
-    .bm-header p {
-      color: var(--text-secondary);
-      font-size: 0.95rem;
-    }
-
-    .section-subtitle {
-      font-size: 1.2rem;
-      font-weight: 700;
-      margin-bottom: 1.25rem;
-      border-left: 3px solid var(--accent-primary);
-      padding-left: 0.75rem;
-    }
-
-    .flow-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      align-items: center;
-    }
-
-    @media (min-width: 992px) {
-      .flow-grid {
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: stretch;
-      }
-    }
-
-    .flow-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      width: 100%;
-      overflow: hidden;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .flow-card-header {
-      padding: 0.85rem 1.25rem;
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: white;
-      text-align: center;
-    }
-
-    .bg-input { background: #3b82f6; }
-    .bg-production { background: #8b5cf6; }
-    .bg-output { background: #10b981; }
-
-    .flow-card-body {
-      padding: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      flex-grow: 1;
-    }
-
-    .flow-item {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 0.75rem;
-    }
-
-    .flow-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .item-title-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .item-name {
-      font-weight: 700;
-      font-size: 0.9rem;
-      color: var(--text-primary);
-    }
-
-    .item-ratio {
-      font-size: 0.8rem;
-      font-weight: 800;
-      background: var(--bg-tertiary);
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
-      color: var(--accent-primary);
-    }
-
-    .item-desc {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
-    }
-
-    .flow-arrow {
-      color: var(--text-muted);
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    @media (max-width: 991px) {
-      .flow-arrow {
-        transform: rotate(90deg);
-      }
-    }
-
-    /* Financial structure bar charts */
-    .financial-structures {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-    }
-
-    @media (min-width: 768px) {
-      .financial-structures {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    .structure-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .bar-chart-container {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .chart-row {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      font-size: 0.85rem;
-      font-weight: 500;
-    }
-
-    .label-col {
-      width: 140px;
-      text-align: right;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .bar-col {
-      flex-grow: 1;
-      height: 8px;
-      background: var(--bg-tertiary);
-      border-radius: 9999px;
-      overflow: hidden;
-    }
-
-    .bar {
-      height: 100%;
-      border-radius: 9999px;
-    }
-
-    .bg-blue { background: var(--accent-gradient); }
-    .bg-emerald { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); }
-
-    .value-col {
-      width: 45px;
-      text-align: left;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    /* 2. News Section Styles */
-    .news-section h2, .documents-section h2, .daily-research-section h2 {
-      font-size: 1.35rem;
-      font-weight: 800;
-      margin-bottom: 1.25rem;
-    }
-
-    .news-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .news-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.25rem;
-      transition: border-color 0.2s ease;
-    }
-
-    .news-card:hover {
-      border-color: var(--accent-primary);
-    }
-
-    .news-meta {
-      display: flex;
-      gap: 1rem;
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      margin-bottom: 0.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .news-source {
-      color: var(--accent-primary);
-    }
-
-    .news-title {
-      font-size: 1.05rem;
-      font-weight: 600;
-      line-height: 1.4;
-      color: var(--text-primary);
-    }
-
-    /* 3. Documents Section Styles */
-    .documents-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .doc-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.25rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .doc-left {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .doc-icon {
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent-primary);
-      flex-shrink: 0;
-    }
-
-    .doc-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 0.15rem;
-    }
-
-    .doc-date {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .btn-download {
-      font-size: 0.85rem;
-      font-weight: 700;
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-      border: 1px solid var(--border-color);
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-download:hover {
-      background: var(--accent-gradient);
-      color: white;
-      border-color: transparent;
-    }
-
-    /* 4. Gated / Daily Research Styles */
-    .gated-overlay-container {
-      position: relative;
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-
-    .gated-blur-content {
-      padding: 1.5rem;
-      filter: blur(8px);
-      -webkit-filter: blur(8px);
-      pointer-events: none;
-      opacity: 0.3;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
-    .research-card-dummy {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.5rem;
-    }
-
-    .research-card-dummy h3 {
-      font-size: 1.15rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .research-card-dummy p {
-      font-size: 0.9rem;
-    }
-
-    .gated-lock-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      text-align: center;
-      background: rgba(var(--bg-primary), 0.2);
-    }
-
-    .lock-icon {
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      color: var(--accent-primary);
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1.25rem;
-      box-shadow: 0 4px 10px rgba(59, 130, 246, 0.1);
-    }
-
-    .lock-title {
-      font-size: 1.35rem;
-      font-weight: 800;
-      color: var(--text-primary);
-      margin-bottom: 0.5rem;
-    }
-
-    .lock-desc {
-      color: var(--text-secondary);
-      font-size: 0.95rem;
-      max-width: 420px;
-      line-height: 1.6;
-      margin-bottom: 1.5rem;
-    }
-
-    .btn-login-cta {
-      background: var(--accent-gradient);
-      color: white;
-      font-weight: 700;
-      font-size: 0.95rem;
-      padding: 0.85rem 1.75rem;
-      border-radius: 9999px;
-      box-shadow: var(--shadow-md);
-      transition: all 0.2s ease;
-    }
-
-    .btn-login-cta:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
-    }
-
-    /* Validated research report view styles */
-    .research-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
-    .research-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.75rem;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
-    .research-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .research-tag {
-      font-size: 0.7rem;
-      font-weight: 800;
-      color: var(--accent-secondary);
-      border: 1px solid var(--accent-secondary);
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
-      letter-spacing: 0.05em;
-    }
-
-    .research-date {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .research-title {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .research-summary {
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-      line-height: 1.6;
-    }
-
-    .btn-read-more {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--accent-primary);
-      align-self: flex-start;
-      margin-top: 0.25rem;
-    }
-
-    .btn-read-more:hover {
-      text-decoration: underline;
-    }
-
-    /* Tab transitions keyframes */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-
-  <!-- Client-side Tab Switcher Script -->
-  <script is:inline>
-    document.addEventListener('DOMContentLoaded', () => {
-      const tabTriggers = document.querySelectorAll('.tab-trigger');
-      const tabPanels = document.querySelectorAll('.tab-panel');
-
-      tabTriggers.forEach(trigger => {
-        trigger.addEventListener('click', () => {
-          const targetTabId = trigger.getAttribute('data-tab');
-
-          // Remove active state from all triggers & panels
-          tabTriggers.forEach(t => t.classList.remove('active'));
-          tabPanels.forEach(p => p.classList.remove('active'));
-
-          // Set active to clicked trigger & target panel
-          trigger.classList.add('active');
-          const targetPanel = document.getElementById(targetTabId);
-          if (targetPanel) {
-            targetPanel.classList.add('active');
-          }
-        });
+</Layout>
+
+<style>
+  /* Active states for triggers */
+  .tab-trigger.active {
+    color: hsl(var(--primary)) !important;
+    border-bottom-color: hsl(var(--primary)) !important;
+  }
+  /* Active panel display */
+  .tab-panel.active {
+    display: block !important;
+  }
+</style>
+
+<!-- Client-side Tab Switcher Script -->
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabTriggers = document.querySelectorAll('.tab-trigger');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    const switchTab = (targetTabId) => {
+      tabTriggers.forEach(t => {
+        if (t.getAttribute('data-tab') === targetTabId) {
+          t.classList.add('active');
+        } else {
+          t.classList.remove('active');
+        }
+      });
+      tabPanels.forEach(p => {
+        if (p.getAttribute('id') === targetTabId) {
+          p.classList.add('active');
+        } else {
+          p.classList.remove('active');
+        }
+      });
+    };
+
+    tabTriggers.forEach(trigger => {
+      trigger.addEventListener('click', () => {
+        const targetTabId = trigger.getAttribute('data-tab');
+        switchTab(targetTabId);
+        // Persist tab selection in hash if needed
+        window.location.hash = targetTabId;
       });
     });
-  </script>
-</Layout>
+
+    // Handle initial hash routing
+    const hash = window.location.hash ? window.location.hash.substring(1) : 'business-model';
+    const activePanel = document.getElementById(hash);
+    if (activePanel) {
+      switchTab(hash);
+    } else {
+      switchTab('business-model');
+    }
+  });
+</script>
