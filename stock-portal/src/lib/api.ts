@@ -145,7 +145,7 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
   }
   
   const data = await response.json();
-  const result = data.result;
+  const result = data.result || data;
   
   if (!result) {
     throw new Error(`API returned empty data for company: ${symbol}`);
