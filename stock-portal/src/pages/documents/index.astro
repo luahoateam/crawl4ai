@@ -1,0 +1,569 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { fetchGlobalDocuments } from '../../lib/api';
+
+let docResult = { result: [], pagination: { page: 1, perPage: 30, total: 0 } };
+let errorMsg = "";
+
+try {
+  docResult = await fetchGlobalDocuments({ perPage: 30 });
+} catch (e: any) {
+  errorMsg = e.message;
+}
+
+const docs = docResult.result || [];
+const pagination = docResult.pagination;
+
+// Lấy danh sách các năm duy nhất từ danh sách tài liệu để làm bộ lọc động
+const uniqueYears = [...new Set(docs.map(d => d.year))].sort((a, b) => b - a);
+---
+
+<Layout title="Tra Cứu Tài Liệu BCTC OCR - Stock Portal">
+  <div class="container docs-page">
+    <div class="page-header">
+      <h1 class="page-title">Tra Cứu Tài Liệu OCR</h1>
+      <p class="page-desc">Tìm kiếm và khai thác dữ liệu từ các báo cáo tài chính đã qua xử lý OCR độ chính xác cao.</p>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="filter-bar">
+      <div class="search-field">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="text" id="doc-search" placeholder="Tìm kiếm tài liệu theo mã, tên file..." autocomplete="off" />
+      </div>
+
+      <div class="select-fields">
+        <div class="select-wrapper">
+          <select id="filter-year" aria-label="Lọc theo Năm">
+            <option value="all">Tất cả các năm</option>
+            {uniqueYears.map(year => (
+              <option value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {errorMsg && (
+      <div class="error-banner">
+        <p>Lỗi kết nối dữ liệu: {errorMsg}</p>
+      </div>
+    )}
+
+    <!-- Documents List -->
+    <div class="doc-list" id="doc-list">
+      {docs.map(item => (
+        <div 
+          class="doc-item" 
+          data-symbol={item.symbol} 
+          data-year={item.year}
+          data-filename={item.fileName}
+        >
+          <div class="doc-info-cols">
+            <div class="doc-badge-col">
+              <span class="doc-badge-symbol">
+                <a href={`/companies/${item.symbol}`}>{item.symbol}</a>
+              </span>
+              <span class="doc-badge-label">{item.label || 'Báo cáo'}</span>
+            </div>
+            
+            <div class="doc-detail-col">
+              <h2 class="doc-filename-title">{item.fileName}</h2>
+              <div class="doc-meta-sub">
+                <span class="meta-item">Năm tài chính: <strong>{item.year}</strong></span>
+                <span class="meta-divider">•</span>
+                <span class="meta-item">Ngày cập nhật: {new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-actions-col">
+            <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" class="doc-view-btn">
+              Xem OCR ↗
+            </a>
+          </div>
+        </div>
+      ))}
+
+      {docs.length === 0 && !errorMsg && (
+        <div class="empty-state" id="empty-state">
+          <h3>Chưa có tài liệu nào</h3>
+          <p>Hiện tại hệ thống chưa cập nhật tài liệu OCR nào.</p>
+        </div>
+      )}
+    </div>
+
+    <!-- Empty State client side -->
+    <div class="empty-state" id="client-empty-state" style="display: none;">
+      <h3>Không tìm thấy tài liệu</h3>
+      <p>Thử tìm kiếm với từ khóa hoặc năm khác.</p>
+    </div>
+
+    <!-- Load More Button -->
+    {pagination && pagination.total > docs.length && (
+      <div class="pagination-container" id="pagination-container">
+        <button id="load-more-btn" class="btn-load-more" data-page="1" data-perpage="30">
+          Xem thêm tài liệu
+        </button>
+      </div>
+    )}
+  </div>
+
+  <style>
+    .docs-page {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding-top: 1rem;
+      padding-bottom: 5rem;
+    }
+
+    .page-header {
+      border-left: 4px solid var(--accent-primary);
+      padding-left: 1rem;
+    }
+
+    .page-title {
+      font-size: clamp(1.75rem, 5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-desc {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      max-width: 600px;
+    }
+
+    /* Filter Bar Styles */
+    .filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    @media (min-width: 768px) {
+      .filter-bar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+
+    .search-field {
+      position: relative;
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    #doc-search {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 0.75rem 1rem 0.75rem 2.75rem;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    #doc-search:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .select-fields {
+      display: flex;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .select-wrapper {
+      position: relative;
+      min-width: 160px;
+    }
+
+    .select-fields select {
+      width: 100%;
+      appearance: none;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 0.75rem 2rem 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      outline: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .select-wrapper::after {
+      content: '';
+      position: absolute;
+      right: 1.15rem;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* Documents List */
+    .doc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .doc-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1.25rem;
+      transition: all 0.25s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: 0 120px;
+    }
+
+    @media (min-width: 768px) {
+      .doc-item {
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
+    .doc-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .doc-info-cols {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      flex-grow: 1;
+    }
+
+    @media (min-width: 576px) {
+      .doc-info-cols {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 1.5rem;
+      }
+    }
+
+    .doc-badge-col {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .doc-badge-symbol {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-primary);
+    }
+
+    .doc-badge-symbol a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .doc-badge-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .doc-detail-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .doc-filename-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    .doc-meta-sub {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+
+    .meta-divider {
+      color: var(--border-color);
+    }
+
+    .doc-actions-col {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .doc-view-btn {
+      width: 100%;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+      text-decoration: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      min-height: 44px; /* Touch target >= 44px */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    @media (min-width: 768px) {
+      .doc-view-btn {
+        width: auto;
+      }
+    }
+
+    .doc-view-btn:hover {
+      background: var(--accent-primary);
+      color: #ffffff;
+      border-color: var(--accent-primary);
+    }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      color: #ef4444;
+      font-weight: 500;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 4rem 1.5rem;
+      text-align: center;
+      background: var(--bg-secondary);
+      border: 1px dashed var(--border-color);
+      border-radius: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    /* Load more button */
+    .pagination-container {
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .btn-load-more {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 44px;
+    }
+
+    .btn-load-more:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--text-muted);
+    }
+  </style>
+
+  <!-- Client-side Filter & Load More Script -->
+  <script is:inline>
+    function removeVietnameseTones(str) {
+      return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'd')
+        .toLowerCase();
+    }
+
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('doc-search');
+      const yearSelect = document.getElementById('filter-year');
+      const items = Array.from(document.querySelectorAll('.doc-item'));
+      const clientEmptyState = document.getElementById('client-empty-state');
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      
+      const applyFilters = () => {
+        const query = searchInput.value.trim().toLowerCase();
+        const normalizedQuery = removeVietnameseTones(query);
+        const year = yearSelect.value;
+
+        let visibleCount = 0;
+        items.forEach(item => {
+          // Year filter
+          if (year !== 'all' && item.getAttribute('data-year') !== year) {
+            item.style.display = 'none';
+            return;
+          }
+
+          // Search query filter
+          if (query) {
+            const filename = item.getAttribute('data-filename').toLowerCase();
+            const normalizedFilename = removeVietnameseTones(filename);
+            const symbol = item.getAttribute('data-symbol').toLowerCase();
+            
+            if (!filename.includes(query) && !normalizedFilename.includes(normalizedQuery) && !symbol.includes(query)) {
+              item.style.display = 'none';
+              return;
+            }
+          }
+
+          item.style.display = 'flex';
+          visibleCount++;
+        });
+
+        if (visibleCount === 0 && items.length > 0) {
+          clientEmptyState.style.display = 'block';
+        } else {
+          clientEmptyState.style.display = 'none';
+        }
+      };
+
+      searchInput.addEventListener('input', debounce(applyFilters, 250));
+      yearSelect.addEventListener('change', applyFilters);
+
+      // Load More Client-side (For simulated demonstration)
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async () => {
+          const currentPage = parseInt(loadMoreBtn.getAttribute('data-page'), 10);
+          const perPage = parseInt(loadMoreBtn.getAttribute('data-perpage'), 10);
+          const nextPage = currentPage + 1;
+          
+          try {
+            loadMoreBtn.textContent = 'Đang tải...';
+            loadMoreBtn.disabled = true;
+
+            const response = await fetch(`/api/documents?page=${nextPage}&per_page=${perPage}`);
+            const data = await response.json();
+
+            if (data.success && data.result.length > 0) {
+              const docList = document.getElementById('doc-list');
+              
+              data.result.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'doc-item';
+                itemDiv.setAttribute('data-symbol', item.symbol);
+                itemDiv.setAttribute('data-year', item.year);
+                itemDiv.setAttribute('data-filename', item.fileName);
+                
+                itemDiv.innerHTML = `
+                  <div class="doc-info-cols">
+                    <div class="doc-badge-col">
+                      <span class="doc-badge-symbol">
+                        <a href="/companies/${item.symbol}">${item.symbol}</a>
+                      </span>
+                      <span class="doc-badge-label">${item.label || 'Báo cáo'}</span>
+                    </div>
+                    
+                    <div class="doc-detail-col">
+                      <h2 class="doc-filename-title">${item.fileName}</h2>
+                      <div class="doc-meta-sub">
+                        <span class="meta-item">Năm tài chính: <strong>${item.year}</strong></span>
+                        <span class="meta-divider">•</span>
+                        <span class="meta-item">Ngày cập nhật: ${new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="doc-actions-col">
+                    <a href="${item.fileUrl}" target="_blank" rel="noopener noreferrer" class="doc-view-btn">
+                      Xem OCR ↗
+                    </a>
+                  </div>
+                `;
+                
+                docList.appendChild(itemDiv);
+                items.push(itemDiv); // Add to active items array for client filters
+              });
+
+              loadMoreBtn.setAttribute('data-page', String(nextPage));
+              
+              if (data.result.length < perPage || (nextPage * perPage) >= data.pagination.total) {
+                loadMoreBtn.parentElement.style.display = 'none';
+              } else {
+                loadMoreBtn.textContent = 'Xem thêm tài liệu';
+                loadMoreBtn.disabled = false;
+              }
+            } else {
+              loadMoreBtn.parentElement.style.display = 'none';
+            }
+          } catch (e) {
+            console.error('Failed to load more documents:', e);
+            loadMoreBtn.textContent = 'Thử lại';
+            loadMoreBtn.disabled = false;
+          }
+        });
+      }
+    });
+  </script>
+</Layout>

@@ -1,0 +1,419 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { fetchGlobalResearch } from '../../lib/api';
+import { verifyJWT } from '../../lib/jwt';
+import { env } from 'cloudflare:workers';
+
+let isLoggedIn = false;
+let userPayload = null;
+let researchResult = { result: [], pagination: { page: 1, perPage: 20, total: 0 } };
+let errorMsg = "";
+
+// Lấy token từ cookie
+const token = Astro.cookies.get('token')?.value;
+const jwtSecret = (env && env.JWT_SECRET) || 'lua-hoa-secret-key-super-secure-2026';
+
+if (token) {
+  try {
+    userPayload = await verifyJWT(token, jwtSecret);
+    isLoggedIn = true;
+    
+    // Chỉ fetch dữ liệu thật từ API khi người dùng đã đăng nhập thành công
+    researchResult = await fetchGlobalResearch({ perPage: 20 });
+  } catch (e: any) {
+    // Token không hợp lệ hoặc hết hạn
+    isLoggedIn = false;
+    errorMsg = e.message;
+  }
+}
+
+const research = researchResult.result || [];
+const pagination = researchResult.pagination;
+---
+
+<Layout title="Báo Cáo Nghiên Cứu Chuyên Sâu - Stock Portal">
+  <div class="container research-page">
+    <div class="page-header">
+      <h1 class="page-title">Báo Cáo Nghiên Cứu</h1>
+      <p class="page-desc">Phân tích chuyên sâu từ Lúa Hóa Team giúp bạn tìm kiếm các cơ hội đầu tư vượt trội.</p>
+    </div>
+
+    <!-- Content Area -->
+    <div class="research-content-container">
+      {isLoggedIn ? (
+        // TRẠNG THÁI ĐÃ ĐĂNG NHẬP: Hiển thị dữ liệu nghiên cứu thật
+        <div class="research-real-section">
+          <div class="research-grid">
+            {research.map(item => (
+              <div class="research-item-real" data-symbol={item.symbol}>
+                <div class="research-card-header">
+                  <span class="research-badge-symbol">
+                    <a href={`/companies/${item.symbol}`}>{item.symbol}</a>
+                  </span>
+                  <span class="research-badge-exchange">{item.exchange}</span>
+                </div>
+                <h2 class="research-card-title">Báo cáo phân tích chuyên sâu {item.symbol}</h2>
+                <p class="research-card-summary">{item.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.'}</p>
+                <div class="research-card-footer">
+                  <span class="research-industry">{item.industry || 'Chưa phân ngành'}</span>
+                  <span class="research-date">
+                    Cập nhật: {item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString('vi-VN') : 'Gần đây'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {research.length === 0 && (
+            <div class="empty-state">
+              <h3>Chưa có báo cáo nghiên cứu</h3>
+              <p>Hệ thống hiện tại chưa cập nhật báo cáo phân tích nào.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        // TRẠNG THÁI CHƯA ĐĂNG NHẬP: Render giao diện khóa, KHÔNG render dữ liệu thật
+        <div class="research-locked-section">
+          <div class="research-blur-cards-preview" aria-hidden="true">
+            {/* 3 cards fake rỗng chỉ có cấu trúc làm nền cho hiệu ứng blur */}
+            <div class="research-fake-card">
+              <div class="fake-header"></div>
+              <div class="fake-title"></div>
+              <div class="fake-line"></div>
+              <div class="fake-line short"></div>
+            </div>
+            <div class="research-fake-card">
+              <div class="fake-header"></div>
+              <div class="fake-title"></div>
+              <div class="fake-line"></div>
+              <div class="fake-line short"></div>
+            </div>
+            <div class="research-fake-card">
+              <div class="fake-header"></div>
+              <div class="fake-title"></div>
+              <div class="fake-line"></div>
+              <div class="fake-line short"></div>
+            </div>
+          </div>
+
+          <!-- Cổng bảo mật chặn truy cập trực tiếp -->
+          <div class="auth-gate-overlay">
+            <div class="auth-gate-card">
+              <div class="lock-icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="32" height="32">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+              <h2>Nội Dung Dành Riêng Cho Hội Viên</h2>
+              <p>Vui lòng đăng nhập tài khoản hội viên Lúa Hóa Team để xem báo cáo phân tích và định giá chuyên sâu.</p>
+              <a href="/login" class="btn-auth-redirect">Đăng nhập ngay</a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+
+  <style>
+    .research-page {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding-top: 1rem;
+      padding-bottom: 5rem;
+    }
+
+    .page-header {
+      border-left: 4px solid var(--accent-primary);
+      padding-left: 1rem;
+    }
+
+    .page-title {
+      font-size: clamp(1.75rem, 5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-desc {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      max-width: 600px;
+    }
+
+    .research-content-container {
+      position: relative;
+      min-height: 400px;
+    }
+
+    /* Grid layout */
+    .research-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (min-width: 768px) {
+      .research-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .research-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* Real cards styling */
+    .research-item-real {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      transition: all 0.25s ease;
+      box-shadow: var(--shadow-sm);
+      content-visibility: auto;
+      contain-intrinsic-size: 0 250px;
+    }
+
+    .research-item-real:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-md);
+    }
+
+    .research-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .research-badge-symbol {
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-primary);
+    }
+
+    .research-badge-symbol a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .research-badge-exchange {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .research-card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.4;
+      margin: 0;
+      color: var(--text-primary);
+    }
+
+    .research-card-summary {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .research-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-color);
+      padding-top: 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .research-industry {
+      font-weight: 600;
+    }
+
+    /* Locked state layout */
+    .research-locked-section {
+      position: relative;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      padding: 2rem;
+      background: var(--bg-secondary);
+    }
+
+    .research-blur-cards-preview {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      filter: blur(8px);
+      opacity: 0.35;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    @media (min-width: 768px) {
+      .research-blur-cards-preview {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .research-blur-cards-preview {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* Fake card placeholders */
+    .research-fake-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.75rem;
+      height: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .fake-header {
+      width: 60px;
+      height: 24px;
+      background: var(--border-color);
+      border-radius: 6px;
+    }
+
+    .fake-title {
+      width: 80%;
+      height: 20px;
+      background: var(--border-color);
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+    }
+
+    .fake-line {
+      width: 100%;
+      height: 12px;
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    .fake-line.short {
+      width: 60%;
+    }
+
+    /* Auth Gate Overlay */
+    .auth-gate-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 10;
+    }
+
+    .auth-gate-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 3rem 2rem;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      animation: fadeInUp 0.4s ease;
+    }
+
+    .lock-icon-wrapper {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--accent-primary);
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .auth-gate-card h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin: 0;
+      color: var(--text-primary);
+      font-family: var(--font-display);
+    }
+
+    .auth-gate-card p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .btn-auth-redirect {
+      width: 100%;
+      background: var(--accent-gradient);
+      color: white;
+      text-decoration: none;
+      padding: 0.85rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      transition: all 0.2s ease;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-auth-redirect:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .empty-state {
+      padding: 4rem 1.5rem;
+      text-align: center;
+      background: var(--bg-secondary);
+      border: 1px dashed var(--border-color);
+      border-radius: 16px;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</Layout>

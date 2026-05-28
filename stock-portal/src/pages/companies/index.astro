@@ -72,6 +72,16 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
             ))}
           </select>
         </div>
+
+        <!-- Data Type Filter -->
+        <div class="select-wrapper">
+          <select id="filter-data-type" aria-label="Lọc theo Loại dữ liệu">
+            <option value="all">Tất cả dữ liệu</option>
+            <option value="has-bm">Có Chuỗi giá trị</option>
+            <option value="has-research">Có Nghiên cứu</option>
+            <option value="has-docs">Có BCTC/Tài liệu</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -100,6 +110,9 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
           data-name={company.name}
           data-exchange={company.exchange}
           data-industry={company.industry || ''}
+          data-has-bm={company.hasBusinessModel ? "true" : "false"}
+          data-has-research={company.hasResearch ? "true" : "false"}
+          data-doc-count={company.docCount || 0}
         >
           <div class="card-header">
             <span class="company-symbol">{company.symbol}</span>
@@ -113,6 +126,11 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
               </svg>
               {company.industry || 'Chưa phân ngành'}
             </span>
+            <div class="card-badges">
+              {company.hasBusinessModel && <span class="badge-bm" title="Có mô hình kinh doanh & chuỗi giá trị">🔗 BM</span>}
+              {company.hasResearch && <span class="badge-research" title="Có báo cáo nghiên cứu">📊 Research</span>}
+              {company.docCount && company.docCount > 0 ? <span class="badge-docs" title={`Có ${company.docCount} tài liệu tài chính`}>📄 BCTC</span> : null}
+            </div>
           </div>
         </a>
       ))}
@@ -392,6 +410,45 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
       border: 1px solid var(--border-color);
     }
 
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .card-badges {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .badge-bm, .badge-research, .badge-docs {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .badge-bm {
+      background: rgba(20, 184, 166, 0.1);
+      color: #14b8a6;
+      border: 1px solid rgba(20, 184, 166, 0.2);
+    }
+
+    .badge-research {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .badge-docs {
+      background: rgba(249, 115, 22, 0.1);
+      color: #f97316;
+      border: 1px solid rgba(249, 115, 22, 0.2);
+    }
+
     /* Empty state styling */
     .empty-state {
       padding: 4rem 1.5rem;
@@ -459,10 +516,20 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
         .toLowerCase();
     }
 
+    // Debounce helper
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('grid-search');
       const exchangeSelect = document.getElementById('filter-exchange');
       const industrySelect = document.getElementById('filter-industry');
+      const dataTypeSelect = document.getElementById('filter-data-type');
       const countDisplay = document.getElementById('results-count');
       const cards = Array.from(document.querySelectorAll('.company-card'));
       const emptyState = document.getElementById('empty-state');
@@ -478,6 +545,7 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
         const normalizedQuery = removeVietnameseTones(query);
         const exchange = exchangeSelect.value;
         const industry = industrySelect.value;
+        const dataType = dataTypeSelect.value;
 
         // Reset visibility
         currentFilteredCards = cards.filter(card => {
@@ -489,6 +557,17 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
           // Industry Match
           if (industry !== 'all' && card.getAttribute('data-industry') !== industry) {
             return false;
+          }
+
+          // Data Type Match
+          if (dataType !== 'all') {
+            const hasBm = card.getAttribute('data-has-bm') === 'true';
+            const hasResearch = card.getAttribute('data-has-research') === 'true';
+            const docCount = parseInt(card.getAttribute('data-doc-count') || '0', 10);
+
+            if (dataType === 'has-bm' && !hasBm) return false;
+            if (dataType === 'has-research' && !hasResearch) return false;
+            if (dataType === 'has-docs' && docCount <= 0) return false;
           }
 
           // Search Match
@@ -548,10 +627,11 @@ const industries = [...new Set(companies.map(c => c.industry).filter(Boolean))].
         });
       }
 
-      // Event listeners
-      searchInput.addEventListener('input', applyFilters);
+      // Event listeners with 250ms debounce for search input
+      searchInput.addEventListener('input', debounce(applyFilters, 250));
       exchangeSelect.addEventListener('change', applyFilters);
       industrySelect.addEventListener('change', applyFilters);
+      dataTypeSelect.addEventListener('change', applyFilters);
 
       // Initial filter apply to set pagination
       applyFilters();

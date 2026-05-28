@@ -1,0 +1,491 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { fetchGlobalNews } from '../../lib/api';
+
+let newsResult = { result: [], pagination: { page: 1, perPage: 30, total: 0 } };
+let errorMsg = "";
+
+try {
+  newsResult = await fetchGlobalNews({ perPage: 30 });
+} catch (e: any) {
+  errorMsg = e.message;
+}
+
+const news = newsResult.result || [];
+const pagination = newsResult.pagination;
+---
+
+<Layout title="Tin Tức Thị Trường Cổ Phiếu - Stock Portal">
+  <div class="container news-page">
+    <div class="page-header">
+      <h1 class="page-title">Tin Tức Thị Trường</h1>
+      <p class="page-desc">Cập nhật tin tức nhanh nhất, chuyên sâu nhất về các doanh nghiệp niêm yết.</p>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="filter-bar">
+      <div class="search-field">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="text" id="news-search" placeholder="Tìm kiếm tin tức bằng từ khóa..." autocomplete="off" />
+      </div>
+
+      <div class="select-fields">
+        <div class="select-wrapper">
+          <select id="filter-symbol" aria-label="Lọc theo Mã cổ phiếu">
+            <option value="all">Tất cả các mã</option>
+            {/* Lấy danh sách mã duy nhất từ news */}
+            {[...new Set(news.map(n => n.symbol))].sort().map(symbol => (
+              <option value={symbol}>{symbol}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- News List -->
+    <div class="news-list" id="news-list">
+      {news.map(item => (
+        <div 
+          class="news-item" 
+          data-symbol={item.symbol} 
+          data-title={item.title}
+        >
+          <div class="news-meta">
+            <span class="news-badge-symbol">
+              <a href={`/companies/${item.symbol}`}>{item.symbol}</a>
+            </span>
+            <span class="news-time">
+              {item.publishedDate ? new Date(item.publishedDate).toLocaleDateString('vi-VN') : new Date(item.createdAt).toLocaleDateString('vi-VN')}
+            </span>
+          </div>
+          <h2 class="news-title">
+            <a href={item.sourceUrl || '#'} target="_blank" rel="noopener noreferrer">{item.title}</a>
+          </h2>
+          {item.sourceUrl ? (
+            <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" class="news-link-btn">
+              Đọc nguồn gốc ↗
+            </a>
+          ) : (
+            <span class="news-link-btn disabled">Tin tức nội bộ</span>
+          )}
+        </div>
+      ))}
+
+      {news.length === 0 && (
+        <div class="empty-state" id="empty-state">
+          <h3>Chưa có tin tức</h3>
+          <p>Hiện tại hệ thống chưa cập nhật tin tức nào.</p>
+        </div>
+      )}
+    </div>
+
+    <!-- Empty State client side -->
+    <div class="empty-state" id="client-empty-state" style="display: none;">
+      <h3>Không tìm thấy tin tức</h3>
+      <p>Thử tìm kiếm với từ khóa khác.</p>
+    </div>
+
+    <!-- Load More Button -->
+    {pagination && pagination.total > news.length && (
+      <div class="pagination-container" id="pagination-container">
+        <button id="load-more-btn" class="btn-load-more" data-page="1" data-perpage="30">
+          Xem thêm tin tức
+        </button>
+      </div>
+    )}
+  </div>
+
+  <style>
+    .news-page {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding-top: 1rem;
+      padding-bottom: 5rem;
+    }
+
+    .page-header {
+      border-left: 4px solid var(--accent-primary);
+      padding-left: 1rem;
+    }
+
+    .page-title {
+      font-size: clamp(1.75rem, 5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-desc {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      max-width: 600px;
+    }
+
+    /* Filter Bar Styles */
+    .filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    @media (min-width: 768px) {
+      .filter-bar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+
+    .search-field {
+      position: relative;
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    #news-search {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 0.75rem 1rem 0.75rem 2.75rem;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    #news-search:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .select-fields {
+      display: flex;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .select-wrapper {
+      position: relative;
+      min-width: 160px;
+    }
+
+    .select-fields select {
+      width: 100%;
+      appearance: none;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 0.75rem 2rem 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      outline: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .select-wrapper::after {
+      content: '';
+      position: absolute;
+      right: 1.15rem;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* News List */
+    .news-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .news-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: all 0.25s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: 0 150px;
+    }
+
+    .news-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .news-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .news-badge-symbol {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-primary);
+    }
+
+    .news-badge-symbol a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .news-time {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .news-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .news-title a {
+      color: var(--text-primary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .news-title a:hover {
+      color: var(--accent-primary);
+    }
+
+    .news-link-btn {
+      align-self: flex-start;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      min-height: 44px; /* Touch target size */
+      display: inline-flex;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+
+    .news-link-btn:hover:not(.disabled) {
+      background: var(--accent-primary);
+      color: #ffffff;
+      border-color: var(--accent-primary);
+    }
+
+    .news-link-btn.disabled {
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 4rem 1.5rem;
+      text-align: center;
+      background: var(--bg-secondary);
+      border: 1px dashed var(--border-color);
+      border-radius: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    /* Load more button */
+    .pagination-container {
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .btn-load-more {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 44px;
+    }
+
+    .btn-load-more:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--text-muted);
+    }
+  </style>
+
+  <!-- Client-side Filter & Load More Script -->
+  <script is:inline define:vars={{ apiUrl: import.meta.env.PUBLIC_API_URL || "https://stock-api-worker.luahoateam.workers.dev" }}>
+    function removeVietnameseTones(str) {
+      return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'd')
+        .toLowerCase();
+    }
+
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('news-search');
+      const symbolSelect = document.getElementById('filter-symbol');
+      const items = Array.from(document.querySelectorAll('.news-item'));
+      const clientEmptyState = document.getElementById('client-empty-state');
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      
+      const applyFilters = () => {
+        const query = searchInput.value.trim().toLowerCase();
+        const normalizedQuery = removeVietnameseTones(query);
+        const symbol = symbolSelect.value;
+
+        let visibleCount = 0;
+        items.forEach(item => {
+          // Symbol filter
+          if (symbol !== 'all' && item.getAttribute('data-symbol') !== symbol) {
+            item.style.display = 'none';
+            return;
+          }
+
+          // Search query filter
+          if (query) {
+            const title = item.getAttribute('data-title').toLowerCase();
+            const normalizedTitle = removeVietnameseTones(title);
+            if (!title.includes(query) && !normalizedTitle.includes(normalizedQuery)) {
+              item.style.display = 'none';
+              return;
+            }
+          }
+
+          item.style.display = 'flex';
+          visibleCount++;
+        });
+
+        if (visibleCount === 0 && items.length > 0) {
+          clientEmptyState.style.display = 'block';
+        } else {
+          clientEmptyState.style.display = 'none';
+        }
+      };
+
+      searchInput.addEventListener('input', debounce(applyFilters, 250));
+      symbolSelect.addEventListener('change', applyFilters);
+
+      // Load More Client-side (For simulated demonstration)
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async () => {
+          const currentPage = parseInt(loadMoreBtn.getAttribute('data-page'), 10);
+          const perPage = parseInt(loadMoreBtn.getAttribute('data-perpage'), 10);
+          const nextPage = currentPage + 1;
+          
+          try {
+            loadMoreBtn.textContent = 'Đang tải...';
+            loadMoreBtn.disabled = true;
+
+            const response = await fetch(`${apiUrl}/api/news?page=${nextPage}&per_page=${perPage}`);
+            const data = await response.json();
+
+            if (data.success && data.result.length > 0) {
+              const newsList = document.getElementById('news-list');
+              
+              data.result.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'news-item';
+                itemDiv.setAttribute('data-symbol', item.symbol);
+                itemDiv.setAttribute('data-title', item.title);
+                
+                const publishedDateStr = item.publishedDate ? new Date(item.publishedDate).toLocaleDateString('vi-VN') : new Date(item.createdAt).toLocaleDateString('vi-VN');
+                
+                itemDiv.innerHTML = `
+                  <div class="news-meta">
+                    <span class="news-badge-symbol">
+                      <a href="/companies/${item.symbol}">${item.symbol}</a>
+                    </span>
+                    <span class="news-time">${publishedDateStr}</span>
+                  </div>
+                  <h2 class="news-title">
+                    <a href="${item.sourceUrl || '#'}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+                  </h2>
+                  ${item.sourceUrl ? `
+                    <a href="${item.sourceUrl}" target="_blank" rel="noopener noreferrer" class="news-link-btn">
+                      Đọc nguồn gốc ↗
+                    </a>
+                  ` : `
+                    <span class="news-link-btn disabled">Tin tức nội bộ</span>
+                  `}
+                `;
+                
+                newsList.appendChild(itemDiv);
+                items.push(itemDiv); // Add to active items array for client filters
+              });
+
+              loadMoreBtn.setAttribute('data-page', String(nextPage));
+              
+              if (data.result.length < perPage || (nextPage * perPage) >= data.pagination.total) {
+                loadMoreBtn.parentElement.style.display = 'none';
+              } else {
+                loadMoreBtn.textContent = 'Xem thêm tin tức';
+                loadMoreBtn.disabled = false;
+              }
+            } else {
+              loadMoreBtn.parentElement.style.display = 'none';
+            }
+          } catch (e) {
+            console.error('Failed to load more news:', e);
+            loadMoreBtn.textContent = 'Thử lại';
+            loadMoreBtn.disabled = false;
+          }
+        });
+      }
+    });
+  </script>
+</Layout>

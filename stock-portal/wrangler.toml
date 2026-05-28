@@ -1,5 +1,10 @@
 name = "stock-portal"
 compatibility_date = "2024-09-26"
+account_id = "7c72ee1bcdc2afa2991960a054a10e8e"
+
+[vars]
+API_URL = "https://stock-api-worker.luahoateam.workers.dev"
+JWT_SECRET = "lua-hoa-secret-key-super-secure-2026"
 
 [[d1_databases]]
 binding = "DB"
@@ -8,4 +13,8 @@ database_id = "64fdc9a0-7248-46f6-8da5-578f0a3b8af6"
 
 [[kv_namespaces]]
 binding = "USER_STORE"
-id = "PLACEHOLDER_KV_ID"
+id = "dab7bf89419947d3934f538e84ca34b2"
+
+[[services]]
+binding = "API_WORKER"
+service = "stock-api-worker"

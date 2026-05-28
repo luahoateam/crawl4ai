@@ -1,0 +1,25 @@
+# Cloudflare Workers
+.wrangler
+.dev.vars
+dist
+
+# Dependencies
+node_modules
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Database & Migrations
+# (Keep migrations in git, but maybe not local sqlite files if any)
+drizzle/migrations
+!drizzle/migrations/*
+
+# Environment
+.env
+.env.local

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { signJWT } from '../../../lib/jwt';
 
 async function sha256(message: string): Promise<string> {
@@ -31,7 +32,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     }
 
     // @ts-ignore
-    const userStore = locals.runtime?.env?.USER_STORE || globalThis.USER_STORE;
+    const userStore = env.USER_STORE || globalThis.USER_STORE;
     if (userStore) {
       try {
         const storedUserJson = await userStore.get(`user:${username}`);
@@ -56,7 +57,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     }
 
     // @ts-ignore
-    const jwtSecret = locals.runtime?.env?.JWT_SECRET || process.env.JWT_SECRET || 'lua-hoa-secret-key-super-secure-2026';
+    const jwtSecret = env.JWT_SECRET || 'lua-hoa-secret-key-super-secure-2026';
     const token = await signJWT({ userId, username, role: 'member' }, jwtSecret);
 
     cookies.set('token', token, {

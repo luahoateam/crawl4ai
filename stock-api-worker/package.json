@@ -1,0 +1,32 @@
+{
+  "name": "stock-api-worker",
+  "version": "1.0.0",
+  "description": "Vietnam Stock Data Hub Pilot API",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chanfana": "^3.3.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.19",
+    "waddler": "^0.1.1",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.6",
+    "@cloudflare/workers-types": "^4.20260517.1",
+    "drizzle-kit": "^0.31.10",
+    "miniflare": "^4.20260515.0",
+    "vitest": "^4.1.6",
+    "wrangler": "^4.92.0"
+  }
+}
