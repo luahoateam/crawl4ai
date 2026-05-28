@@ -19,8 +19,8 @@ describe('Diagram Helpers', () => {
     });
 
     it('should default to empty string or 0% for invalid inputs', () => {
-      expect(formatRatio('')).toBe('0%');
-      expect(formatRatio(null as any)).toBe('0%');
+      expect(formatRatio('')).toBe('');
+      expect(formatRatio(null as any)).toBe('');
     });
   });
 

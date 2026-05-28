@@ -12,12 +12,18 @@ export interface Company {
   docCount?: number;
 }
 
+export interface ValueChainItem {
+  item: string;
+  ratio: string;
+  description: string;
+}
+
 export interface BusinessModel {
-  revenueStruct?: any[];
-  profitStruct?: any[];
-  inputs?: any[];
-  production?: any[];
-  outputs?: any[];
+  revenueStruct?: ValueChainItem[];
+  profitStruct?: ValueChainItem[];
+  inputs?: ValueChainItem[];
+  production?: ValueChainItem[];
+  outputs?: ValueChainItem[];
   others?: string | null;
 }
 
@@ -152,18 +158,6 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
   }
   
   const bizModel = result.businessModel || {};
-  const parseJsonField = (field: any) => {
-    if (!field) return [];
-    if (typeof field === 'string') {
-      try {
-        return JSON.parse(field);
-      } catch (e) {
-        return [];
-      }
-    }
-    return Array.isArray(field) ? field : [];
-  };
-  
   return {
     company: {
       symbol: result.profile.symbol,
@@ -173,11 +167,11 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
       description: result.profile.description || `Thông tin chi tiết về mô hình kinh doanh và báo cáo nghiên cứu của Doanh nghiệp ${result.profile.symbol}.`
     },
     businessModel: {
-      revenueStruct: parseJsonField(bizModel.revenueStruct),
-      profitStruct: parseJsonField(bizModel.profitStruct),
-      inputs: parseJsonField(bizModel.inputs),
-      production: parseJsonField(bizModel.production),
-      outputs: parseJsonField(bizModel.outputs),
+      revenueStruct: normalizeValueChain(bizModel.revenueStruct),
+      profitStruct: normalizeValueChain(bizModel.profitStruct),
+      inputs: normalizeValueChain(bizModel.inputs),
+      production: normalizeValueChain(bizModel.production),
+      outputs: normalizeValueChain(bizModel.outputs),
       others: bizModel.others || null
     },
     news: (result.news || []).map((item: any) => ({
@@ -201,7 +195,7 @@ export async function fetchCompanyPack(symbol: string): Promise<CompanyPack> {
         url: '#',
         publishedAt: result.research.lastUpdated || new Date().toISOString(),
         summary: result.research.summary || 'Thông tin đánh giá chi tiết chưa được cập nhật.',
-        ssiReview: result.research.ssiReview || null
+        ssiReview: result.research.ssi_review || result.research.ssiReview || null
       }
     ] : []
   };
@@ -368,4 +362,55 @@ export async function fetchGlobalResearch(params?: { symbol?: string; page?: num
     result: data.result || [],
     pagination: data.pagination
   };
+}
+
+export function normalizeValueChain(field: any): ValueChainItem[] {
+  if (field === null || field === undefined || field === '') {
+    return [];
+  }
+  if (Array.isArray(field)) {
+    return field;
+  }
+  if (typeof field === 'string') {
+    const trimmed = field.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (e) {
+        return [];
+      }
+    }
+    
+    const lines = trimmed.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.startsWith('-') || line.startsWith('*'));
+      
+    return lines.map(line => {
+      let content = line.substring(1).trim();
+      
+      let cleanContent = '';
+      for (const char of content) {
+        if (char !== ':' && char !== '(' && char !== '[' && char !== '\\') {
+          cleanContent += char;
+        }
+      }
+      cleanContent = cleanContent.trim();
+      
+      const words = cleanContent.split(/\s+/).filter(Boolean);
+      let item = cleanContent;
+      if (words.length > 5) {
+        item = words.slice(0, 5).join(' ') + '...';
+      }
+      
+      return {
+        item: item,
+        ratio: '',
+        description: ''
+      };
+    });
+  }
+  return [];
 }

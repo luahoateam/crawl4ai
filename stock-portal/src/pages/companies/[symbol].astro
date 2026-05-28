@@ -247,12 +247,33 @@ try {
                 {pack.dailyResearch.map(item => (
                   <div class="research-card bg-card border border-border rounded-xl p-5 flex flex-col gap-3 hover:border-primary transition-all duration-200">
                     <div class="flex justify-between items-center text-xs text-muted-foreground">
-                      <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 uppercase tracking-wider">CHUYÊN SÂU</span>
+                      <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 uppercase tracking-wider">SSI Research</span>
                       <span>{item.publishedAt}</span>
                     </div>
                     <h3 class="text-base font-bold text-foreground font-display">{item.title}</h3>
-                    <div class="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                      {item.ssiReview || item.summary}
+                    
+                    <div class="flex flex-col gap-4 mt-1">
+                      {item.summary && (
+                        <div class="p-4 bg-muted/30 rounded-lg border border-border/50">
+                          <h4 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                            <span>📋</span> Tóm Tắt Nhận Định
+                          </h4>
+                          <p class="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{item.summary}</p>
+                        </div>
+                      )}
+                      
+                      {item.ssiReview && (
+                        <div class="p-4 bg-primary/5 rounded-lg border border-primary/10">
+                          <h4 class="text-xs font-bold uppercase tracking-wider text-primary mb-1.5 flex items-center gap-1.5">
+                            <span>🔍</span> Đánh Giá Chi Tiết SSI Research
+                          </h4>
+                          <p class="text-sm text-foreground/90 leading-relaxed whitespace-pre-line">{item.ssiReview}</p>
+                        </div>
+                      )}
+
+                      {!item.summary && !item.ssiReview && (
+                        <p class="text-sm text-muted-foreground italic">Nội dung đang được cập nhật...</p>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -1,11 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { fetchCompanies, fetchStats, fetchGlobalDocuments, fetchGlobalResearch } from '../lib/api';
+import { fetchCompanies, fetchStats, fetchGlobalResearch } from '../lib/api';
 
 let companies = [];
 let stats = { companies: 1617, businessModels: 1429, dailyResearch: 560, news: 14888, documents: 18185 };
 let researchFeed = [];
-let docsFeed = [];
 let errorMsg = "";
 
 // Check auth token
@@ -38,11 +37,6 @@ try {
 try {
   const researchRes = await fetchGlobalResearch({ perPage: 4 });
   researchFeed = researchRes.result || [];
-} catch (e) {}
-
-try {
-  const docsRes = await fetchGlobalDocuments({ perPage: 4 });
-  docsFeed = docsRes.result || [];
 } catch (e) {}
 
 const totalCount = stats.companies;
@@ -105,6 +99,46 @@ const vn30Companies = companies
       </div>
     </section>
 
+    <!-- VN30 Section (Mô hình kinh doanh mặc định nhóm VN30) -->
+    <section class="flex flex-col gap-6" data-section="vn30">
+      <div class="flex items-center justify-between border-l-4 border-primary pl-4">
+        <div>
+          <h2 class="text-2xl font-bold text-foreground font-display flex items-center gap-2">
+            🏆 Mô Hình Kinh Doanh Nhóm VN30
+          </h2>
+          <p class="text-sm text-muted-foreground mt-1">Chuỗi giá trị và hoạt động của 30 doanh nghiệp niêm yết hàng đầu thị trường Việt Nam.</p>
+        </div>
+        <a href="/companies" class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
+          Xem tất cả ({totalCount}) &rarr;
+        </a>
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {vn30Companies.map((c) => (
+          <div class="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md hover:border-primary transition-all duration-300 transform hover:-translate-y-0.5">
+            <div class="flex flex-col gap-2">
+              <div class="flex justify-between items-start">
+                <span class="font-display font-extrabold text-sm text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg">{c.symbol}</span>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded border border-border text-rose-500 bg-rose-500/5 border-rose-500/20">{c.exchange}</span>
+              </div>
+              <h3 class="text-sm font-bold text-foreground leading-snug tracking-tight mt-1">{c.name}</h3>
+              <span class="text-xs font-semibold text-muted-foreground">{c.industry || 'Chưa phân ngành'}</span>
+            </div>
+            
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              {c.hasBusinessModel && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">CHUỖI GIÁ TRỊ</span>}
+              {c.docCount > 0 && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">BCTC AI</span>}
+              {c.hasResearch && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">SSI RESEARCH</span>}
+            </div>
+            
+            <a href={`/companies/${c.symbol}`} class="w-full bg-muted border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary text-center py-2 rounded-lg text-xs font-bold transition-all duration-200 mt-2 min-h-[38px] flex items-center justify-center">
+              Xem mô hình kinh doanh &rarr;
+            </a>
+          </div>
+        ))}
+      </div>
+    </section>
+
     <!-- Stats Section -->
     <section class="py-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -141,85 +175,6 @@ const vn30Companies = companies
             </p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- Documents Section (Báo cáo tài chính cho AI đọc) -->
-    <section class="flex flex-col gap-6">
-      <div class="flex items-center justify-between border-l-4 border-primary pl-4">
-        <h2 class="text-2xl font-bold text-foreground font-display">Báo Cáo Tài Chính Cho AI Đọc</h2>
-        <a href="/documents" class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
-          Xem tất cả &rarr;
-        </a>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {docsFeed.map((item) => (
-          <div class="bg-card border border-border rounded-2xl p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-primary transition-all duration-200">
-            <span class="inline-flex self-start text-xs font-bold px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-              <a href={`/companies/${item.symbol}`}>{item.symbol}</a>
-            </span>
-            <h3 class="text-sm font-semibold text-foreground leading-snug line-clamp-2 min-h-[2.8rem]">
-              {item.fileName}
-            </h3>
-            <div class="flex justify-between items-center text-xs text-muted-foreground mt-2">
-              <span>Năm {item.year}</span>
-              <span class="bg-muted px-2 py-0.5 rounded border border-border font-medium">{item.label || 'BCTC'}</span>
-            </div>
-            <a 
-              href={item.fileUrl} 
-              class="w-full bg-muted border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary text-center py-2.5 rounded-lg text-sm font-bold transition-all duration-200 mt-auto min-h-[44px] flex items-center justify-center" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              Đọc bằng AI
-            </a>
-          </div>
-        ))}
-        {docsFeed.length === 0 && (
-          <div class="col-span-full py-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card">
-            Chưa có tài liệu tài chính AI mới.
-          </div>
-        )}
-      </div>
-    </section>
-
-    <!-- VN30 Section (Mô hình kinh doanh mặc định nhóm VN30) -->
-    <section class="flex flex-col gap-6">
-      <div class="flex items-center justify-between border-l-4 border-primary pl-4">
-        <div>
-          <h2 class="text-2xl font-bold text-foreground font-display flex items-center gap-2">
-            🏆 Mô Hình Kinh Doanh Nhóm VN30
-          </h2>
-          <p class="text-sm text-muted-foreground mt-1">Chuỗi giá trị và hoạt động của 30 doanh nghiệp niêm yết hàng đầu thị trường Việt Nam.</p>
-        </div>
-        <a href="/companies" class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
-          Xem tất cả ({totalCount}) &rarr;
-        </a>
-      </div>
-      
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {vn30Companies.map((c) => (
-          <div class="bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md hover:border-primary transition-all duration-300 transform hover:-translate-y-0.5">
-            <div class="flex flex-col gap-2">
-              <div class="flex justify-between items-start">
-                <span class="font-display font-extrabold text-sm text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg">{c.symbol}</span>
-                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded border border-border text-rose-500 bg-rose-500/5 border-rose-500/20">{c.exchange}</span>
-              </div>
-              <h3 class="text-sm font-bold text-foreground leading-snug tracking-tight mt-1">{c.name}</h3>
-              <span class="text-xs font-semibold text-muted-foreground">{c.industry || 'Chưa phân ngành'}</span>
-            </div>
-            
-            <div class="flex flex-wrap gap-1.5 mt-2">
-              {c.hasBusinessModel && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">CHUỖI GIÁ TRỊ</span>}
-              {c.docCount > 0 && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">BCTC AI</span>}
-              {c.hasResearch && <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">SSI RESEARCH</span>}
-            </div>
-            
-            <a href={`/companies/${c.symbol}`} class="w-full bg-muted border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary text-center py-2 rounded-lg text-xs font-bold transition-all duration-200 mt-2 min-h-[38px] flex items-center justify-center">
-              Xem mô hình kinh doanh &rarr;
-            </a>
-          </div>
-        ))}
       </div>
     </section>
 

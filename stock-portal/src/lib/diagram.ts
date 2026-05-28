@@ -1,6 +1,6 @@
 export function formatRatio(ratio: string | number | null | undefined): string {
   if (ratio === null || ratio === undefined || ratio === '') {
-    return '0%';
+    return '';
   }
 
   if (typeof ratio === 'string') {
@@ -9,7 +9,7 @@ export function formatRatio(ratio: string | number | null | undefined): string {
     }
     const parsed = parseFloat(ratio);
     if (isNaN(parsed)) {
-      return '0%';
+      return '';
     }
     ratio = parsed;
   }
@@ -21,11 +21,14 @@ export function formatRatio(ratio: string | number | null | undefined): string {
     return `${ratio}%`;
   }
 
-  return '0%';
+  return '';
 }
 
-export function calculateColorIntensity(ratio: string | number): string {
+export function calculateColorIntensity(ratio: string | number | null | undefined): string {
   const formatted = formatRatio(ratio);
+  if (formatted === '') {
+    return 'rgba(59, 130, 246, 0.3)';
+  }
   const numValue = parseFloat(formatted.replace('%', ''));
   
   if (numValue >= 70) {

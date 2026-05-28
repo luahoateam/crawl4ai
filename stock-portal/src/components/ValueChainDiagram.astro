@@ -35,10 +35,12 @@ const { inputs = [], production = [], outputs = [] } = Astro.props;
             <div class="interactive-flow-card" data-idx={idx}>
               <div class="card-top">
                 <span class="card-name">{item.item}</span>
-                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                {ratioStr && (
+                  <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                )}
               </div>
               <div class="tooltip-box">
-                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-header">{item.item}{ratioStr ? ` (${ratioStr})` : ''}</div>
                 <div class="tooltip-body">{item.description}</div>
               </div>
             </div>
@@ -71,10 +73,12 @@ const { inputs = [], production = [], outputs = [] } = Astro.props;
             <div class="interactive-flow-card" data-idx={idx}>
               <div class="card-top">
                 <span class="card-name">{item.item}</span>
-                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                {ratioStr && (
+                  <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                )}
               </div>
               <div class="tooltip-box">
-                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-header">{item.item}{ratioStr ? ` (${ratioStr})` : ''}</div>
                 <div class="tooltip-body">{item.description}</div>
               </div>
             </div>
@@ -107,10 +111,12 @@ const { inputs = [], production = [], outputs = [] } = Astro.props;
             <div class="interactive-flow-card" data-idx={idx}>
               <div class="card-top">
                 <span class="card-name">{item.item}</span>
-                <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                {ratioStr && (
+                  <span class="card-ratio-badge" style={`background-color: ${intensity}; color: #ffffff;`}>{ratioStr}</span>
+                )}
               </div>
               <div class="tooltip-box">
-                <div class="tooltip-header">{item.item} ({ratioStr})</div>
+                <div class="tooltip-header">{item.item}{ratioStr ? ` (${ratioStr})` : ''}</div>
                 <div class="tooltip-body">{item.description}</div>
               </div>
             </div>
