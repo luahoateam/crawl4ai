@@ -6,6 +6,7 @@ import subprocess
 import requests
 import datetime
 import os
+import time
 from typing import List, Optional
 
 # Set up logging
@@ -30,26 +31,30 @@ except ImportError:
 YEAR = 2024
 BUCKET_NAME = "stock-contents"  # Wrangler R2 bucket name
 
-def execute_d1_query(command: str) -> list:
-    """Executes a SQL command on D1 via Wrangler CLI and returns JSON results."""
+def execute_d1_query(command: str, max_retries: int = 3) -> list:
+    """Executes a SQL command on D1 via Wrangler CLI and returns JSON results, with retries."""
     cmd = ["npx", "wrangler", "d1", "execute", "DB", "--remote", f"--command={command}", "--json"]
     is_windows = os.name == 'nt'
-    try:
-        result = subprocess.run(cmd, shell=is_windows, capture_output=True, text=True, timeout=45)
-        if result.returncode != 0:
-            logger.error(f"D1 Query failed. Command: {command}")
-            logger.error(f"Stderr: {result.stderr}")
-            raise Exception(f"D1 Query failed with exit code {result.returncode}")
-        
-        # Parse wrangler output
-        data = json.loads(result.stdout)
-        # Wrangler returns a list of results, one per statement (usually we run 1 statement)
-        if isinstance(data, list) and len(data) > 0:
-            return data[0].get("results", [])
-        return []
-    except Exception as e:
-        logger.error(f"Exception running D1 command: {e}")
-        raise e
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = subprocess.run(cmd, shell=is_windows, capture_output=True, text=True, timeout=45)
+            if result.returncode != 0:
+                logger.error(f"D1 Query failed. Command: {command} (Attempt {attempt}/{max_retries})")
+                logger.error(f"Stderr: {result.stderr}")
+                raise Exception(f"D1 Query failed with exit code {result.returncode}")
+            
+            # Parse wrangler output
+            data = json.loads(result.stdout)
+            # Wrangler returns a list of results, one per statement (usually we run 1 statement)
+            if isinstance(data, list) and len(data) > 0:
+                return data[0].get("results", [])
+            return []
+        except Exception as e:
+            logger.error(f"Exception running D1 command: {e} (Attempt {attempt}/{max_retries})")
+            if attempt == max_retries:
+                raise e
+            time.sleep(5)  # Wait 5 seconds before retrying
 
 def run_pipeline(limit: int = 5, tickers: List[str] = None):
     logger.info("Starting Annual Report 2024 pipeline...")
@@ -173,7 +178,10 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
         except Exception as ocr_err:
             logger.error(f"OCR or Upload failure for {ticker}: {ocr_err}")
             escaped_err = str(ocr_err).replace("'", "''").replace("\n", " ")
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = '{escaped_err}', attempts = attempts + 1, updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+            try:
+                execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = '{escaped_err}', attempts = attempts + 1, updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+            except Exception as db_err:
+                logger.error(f"Failed to update failed status in D1 for {ticker}: {db_err}")
             
         finally:
             # Step 9: Clean up local temporary files
