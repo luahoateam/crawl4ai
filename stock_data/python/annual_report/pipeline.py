@@ -30,9 +30,10 @@ except ImportError:
 
 YEAR = 2024
 BUCKET_NAME = "stock-contents"  # Wrangler R2 bucket name
+API_BASE_URL = "https://stock-api-worker.luahoateam.workers.dev"
 
 def execute_d1_query(command: str, max_retries: int = 3) -> list:
-    """Executes a SQL command on D1 via Wrangler CLI and returns JSON results, with retries."""
+    """Executes a SQL command on D1 via Wrangler CLI and returns JSON results, with retries. Used as fallback."""
     cmd = ["npx", "wrangler", "d1", "execute", "DB", "--remote", f"--command={command}", "--json"]
     is_windows = os.name == 'nt'
     
@@ -46,7 +47,6 @@ def execute_d1_query(command: str, max_retries: int = 3) -> list:
             
             # Parse wrangler output
             data = json.loads(result.stdout)
-            # Wrangler returns a list of results, one per statement (usually we run 1 statement)
             if isinstance(data, list) and len(data) > 0:
                 return data[0].get("results", [])
             return []
@@ -54,7 +54,53 @@ def execute_d1_query(command: str, max_retries: int = 3) -> list:
             logger.error(f"Exception running D1 command: {e} (Attempt {attempt}/{max_retries})")
             if attempt == max_retries:
                 raise e
-            time.sleep(5)  # Wait 5 seconds before retrying
+            time.sleep(5)
+
+def update_queue_status(ticker: str, status: str, pdf_url: str = None, ocr_job_id: str = None, error_msg: str = None, page_count: int = None, max_retries: int = 3) -> bool:
+    """Updates the annual report queue status in D1 via the Worker API, with retries."""
+    api_url = f"{API_BASE_URL}/api/pipeline/annual-reports/update-status"
+    payload = {
+        "ticker": ticker,
+        "year": YEAR,
+        "status": status,
+        "pdfUrl": pdf_url,
+        "ocrJobId": ocr_job_id,
+        "errorMsg": error_msg,
+        "pageCount": page_count
+    }
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.post(api_url, json=payload, timeout=20)
+            if resp.status_code == 200 and resp.json().get("success"):
+                return True
+            logger.error(f"Failed to update status {status} for {ticker} via API (Attempt {attempt}/{max_retries}): {resp.text}")
+        except Exception as e:
+            logger.error(f"Exception during update status for {ticker} via API (Attempt {attempt}/{max_retries}): {e}")
+            
+        if attempt < max_retries:
+            time.sleep(3)
+            
+    # Fallback to D1 CLI if API fails completely
+    logger.warning(f"⚠️ API status update failed for {ticker}. Falling back to D1 CLI...")
+    row_id = f"{ticker}_{YEAR}"
+    try:
+        if status == 'failed':
+            escaped_err = str(error_msg).replace("'", "''").replace("\n", " ") if error_msg else "Unknown error"
+            execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = '{escaped_err}', attempts = attempts + 1, updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        elif status == 'crawling':
+            execute_d1_query(f"UPDATE annual_report_queue SET status = 'crawling', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        elif status == 'downloading':
+            escaped_pdf = str(pdf_url).replace("'", "''")
+            execute_d1_query(f"UPDATE annual_report_queue SET status = 'downloading', pdf_url = '{escaped_pdf}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        elif status == 'ocr_submitted':
+            execute_d1_query(f"UPDATE annual_report_queue SET status = 'ocr_submitted', ocr_job_id = '{ocr_job_id}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        else:
+            execute_d1_query(f"UPDATE annual_report_queue SET status = '{status}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        return True
+    except Exception as cli_err:
+        logger.error(f"CLI Fallback also failed for {ticker}: {cli_err}")
+        return False
 
 def run_pipeline(limit: int = 5, tickers: List[str] = None):
     logger.info("Starting Annual Report 2024 pipeline...")
@@ -64,9 +110,22 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
         logger.info(f"Processing manual tickers list: {tickers}")
         items = [{"ticker": t.upper()} for t in tickers]
     else:
-        logger.info(f"Fetching {limit} pending tickers from D1 queue...")
-        query = f"SELECT ticker FROM annual_report_queue WHERE status = 'pending' LIMIT {limit}"
-        items = execute_d1_query(query)
+        logger.info(f"Fetching {limit} pending tickers from Worker API...")
+        try:
+            api_url = f"{API_BASE_URL}/api/pipeline/annual-reports/pending?limit={limit}"
+            resp = requests.get(api_url, timeout=30)
+            items = []
+            if resp.status_code == 200 and resp.json().get("success"):
+                items = resp.json().get("results", [])
+            else:
+                logger.error(f"Failed to fetch pending tickers via API: {resp.text}")
+                # Fallback to D1 CLI
+                query = f"SELECT ticker FROM annual_report_queue WHERE status = 'pending' OR (status = 'failed' AND attempts < 3) LIMIT {limit}"
+                items = execute_d1_query(query)
+        except Exception as e:
+            logger.error(f"Exception fetching pending tickers from API: {e}")
+            query = f"SELECT ticker FROM annual_report_queue WHERE status = 'pending' OR (status = 'failed' AND attempts < 3) LIMIT {limit}"
+            items = execute_d1_query(query)
         
     if not items:
         logger.info("No pending tickers found in the queue. Done.")
@@ -74,51 +133,68 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
         
     for item in items:
         ticker = item["ticker"]
-        row_id = f"{ticker}_{YEAR}"
         logger.info(f"\n=========================================")
         logger.info(f"Processing ticker: {ticker}")
         
         # Set status to crawling
-        execute_d1_query(f"UPDATE annual_report_queue SET status = 'crawling', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        update_queue_status(ticker, 'crawling')
         
         # Step 2: Crawl link PDF
         pdf_url = crawl_pdf_link(ticker, YEAR)
         if not pdf_url:
             logger.error(f"Annual report PDF link for {ticker} ({YEAR}) not found!")
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'no_report_found', error_msg = 'Link PDF not found', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+            update_queue_status(ticker, 'no_report_found', error_msg='Link PDF not found')
             continue
             
         # Save pdf_url and update status to downloading
-        escaped_pdf_url = pdf_url.replace("'", "''")
-        execute_d1_query(f"UPDATE annual_report_queue SET pdf_url = '{escaped_pdf_url}', status = 'downloading', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        update_queue_status(ticker, 'downloading', pdf_url=pdf_url)
         
         # Step 3: Download PDF and count pages
         local_pdf_path, page_count = download_pdf_and_count_pages(pdf_url, ticker, YEAR, temp_dir="ocr_data/temp_pdf")
         if not local_pdf_path or page_count == 0:
             logger.error(f"Failed to download and count PDF for {ticker} ({YEAR})!")
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = 'Download failed or PDF is corrupted', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+            update_queue_status(ticker, 'failed', error_msg='Download failed or PDF is corrupted')
             continue
             
-        # Step 4: Check daily quota limits
-        today = datetime.date.today().isoformat()
-        # Ensure quota row exists for today
-        execute_d1_query(f"INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES ('{today}', 0)")
-        quota_results = execute_d1_query(f"SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = '{today}'")
+        # Step 4: Check daily quota limits via API
         pages_used = 0
         pages_limit = 19500
-        if quota_results:
-            pages_used = quota_results[0].get("pages_used", 0)
-            pages_limit = quota_results[0].get("pages_limit", 19500)
+        try:
+            quota_url = f"{API_BASE_URL}/api/pipeline/annual-reports/quota"
+            resp = requests.get(quota_url, timeout=20)
+            if resp.status_code == 200 and resp.json().get("success"):
+                pages_used = resp.json().get("pagesUsed", 0)
+                pages_limit = resp.json().get("pagesLimit", 19500)
+            else:
+                logger.error(f"Failed to fetch daily quota via API: {resp.text}")
+                # Fallback to D1 CLI
+                today = datetime.date.today().isoformat()
+                execute_d1_query(f"INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES ('{today}', 0)")
+                quota_results = execute_d1_query(f"SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = '{today}'")
+                if quota_results:
+                    pages_used = quota_results[0].get("pages_used", 0)
+                    pages_limit = quota_results[0].get("pages_limit", 19500)
+        except Exception as e:
+            logger.error(f"Exception fetching quota via API: {e}")
+            # Fallback to D1 CLI
+            today = datetime.date.today().isoformat()
+            execute_d1_query(f"INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES ('{today}', 0)")
+            quota_results = execute_d1_query(f"SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = '{today}'")
+            if quota_results:
+                pages_used = quota_results[0].get("pages_used", 0)
+                pages_limit = quota_results[0].get("pages_limit", 19500)
             
         if pages_used + page_count > pages_limit:
             logger.warning(f"⚠️ Daily quota limit reached! (Used: {pages_used}, Required for {ticker}: {page_count}, Limit: {pages_limit}). Skipping this run.")
             if os.path.exists(local_pdf_path):
                 os.remove(local_pdf_path)
+            # Reset status of this ticker back to pending since it was not processed due to quota limits
+            update_queue_status(ticker, 'pending')
             break
             
         # Step 5: Submit OCR Job
         logger.info(f"Submitting OCR job for {ticker} ({page_count} pages)...")
-        execute_d1_query(f"UPDATE annual_report_queue SET status = 'ocr_submitted', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+        update_queue_status(ticker, 'ocr_submitted')
         
         local_md_path = None
         try:
@@ -126,7 +202,7 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
             job_id = client.submit_job(pdf_url)
             
             # Save job_id in queue
-            execute_d1_query(f"UPDATE annual_report_queue SET ocr_job_id = '{job_id}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
+            update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
             
             # Poll for results
             results = client.poll_job(job_id)
@@ -142,14 +218,14 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
             if not upload_success:
                 raise Exception("Wrangler R2 upload failed")
                 
-            # Step 7: Ingest to Worker API
+            # Step 7: Ingest to Worker API (automatically updates status to 'done' and logs pages quota)
             logger.info("Registering document metadata to Worker API...")
-            api_url = "https://stock-api-worker.luahoateam.workers.dev/api/pipeline/annual-reports/ingest"
+            ingest_url = f"{API_BASE_URL}/api/pipeline/annual-reports/ingest"
             payload = {
                 "ticker": ticker,
                 "year": YEAR,
                 "fileName": "report.md",
-                "fileUrl": "https://stock-api-worker.luahoateam.workers.dev/api/documents/temp/view", # dummy URL, server auto-regenerates it
+                "fileUrl": f"{API_BASE_URL}/api/documents/temp/view",
                 "r2Key": r2_key,
                 "label": f"Báo cáo thường niên năm {YEAR} (PaddleOCR)",
                 "pageCount": page_count
@@ -159,7 +235,7 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
                 "Content-Type": "application/json"
             }
             
-            resp = requests.post(api_url, json=payload, headers=headers, timeout=30)
+            resp = requests.post(ingest_url, json=payload, headers=headers, timeout=30)
             if resp.status_code != 200:
                 raise Exception(f"Ingest API failed with status {resp.status_code}: {resp.text}")
                 
@@ -167,24 +243,15 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
             if not resp_data.get("success"):
                 raise Exception(f"Ingest API returned success=False: {resp_data}")
                 
-            # Step 8: Update log quota pages in D1
-            execute_d1_query(f"UPDATE daily_quota_log SET pages_used = pages_used + {page_count} WHERE date = '{today}'")
-            
-            # Step 8.5: Update queue status to success
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'success', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-            
             logger.info(f"✅ Successfully completed annual report for {ticker}! Registered document ID: {resp_data.get('documentId')}")
             
         except Exception as ocr_err:
             logger.error(f"OCR or Upload failure for {ticker}: {ocr_err}")
             escaped_err = str(ocr_err).replace("'", "''").replace("\n", " ")
-            try:
-                execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = '{escaped_err}', attempts = attempts + 1, updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-            except Exception as db_err:
-                logger.error(f"Failed to update failed status in D1 for {ticker}: {db_err}")
+            update_queue_status(ticker, 'failed', error_msg=escaped_err)
             
         finally:
-            # Step 9: Clean up local temporary files
+            # Step 8: Clean up local temporary files
             if os.path.exists(local_pdf_path):
                 try:
                     os.remove(local_pdf_path)
