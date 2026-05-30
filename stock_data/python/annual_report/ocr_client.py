@@ -48,7 +48,7 @@ class PaddleOCRClient:
                 "model": "PaddleOCR-VL-1.6",
                 "optionalPayload": optional_payload
             }
-            response = requests.post(JOB_URL, json=payload, headers=headers, timeout=60)
+            response = requests.post(JOB_URL, json=payload, headers=headers, timeout=300)
         else:
             if not os.path.exists(file_path_or_url):
                 raise FileNotFoundError(f"File not found: {file_path_or_url}")
