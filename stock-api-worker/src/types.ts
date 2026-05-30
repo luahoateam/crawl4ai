@@ -36,6 +36,7 @@ export const DocumentItemSchema = z.object({
   fileName: z.string(),
   fileUrl: z.string(),
   label: z.string().optional().nullable(),
+  documentType: z.string().optional().nullable(),
 });
 
 export const CompanyPackSchema = z.object({

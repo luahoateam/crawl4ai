@@ -46,7 +46,7 @@ export class CompanyPackEndpoint extends OpenAPIRoute {
       sql`SELECT * FROM business_models WHERE symbol = ${symbol} LIMIT 1`.all(),
       sql`SELECT * FROM daily_research WHERE symbol = ${symbol} LIMIT 1`.all(),
       sql`SELECT * FROM news_index WHERE symbol = ${symbol} ORDER BY created_at DESC LIMIT 5`.all(),
-      sql`SELECT id, year, file_name, file_url, label FROM financial_documents WHERE symbol = ${symbol} ORDER BY year DESC`.all(),
+      sql`SELECT id, year, file_name, file_url, label, document_type FROM financial_documents WHERE symbol = ${symbol} ORDER BY year DESC`.all(),
     ]);
 
     const businessModel = bizResults[0];
@@ -94,6 +94,7 @@ export class CompanyPackEndpoint extends OpenAPIRoute {
         fileName: doc.file_name,
         fileUrl: doc.file_url,
         label: doc.label,
+        documentType: doc.document_type || null,
       })),
     };
   }

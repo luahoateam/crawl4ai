@@ -42,6 +42,7 @@ export const financialDocuments = sqliteTable('financial_documents', {
   fileUrl: text('file_url').notNull(),
   label: text('label'),
   status: text('status').default('Chưa kiểm tra'),
+  documentType: text('document_type').default('bctc'),
   r2Key: text('r2_key').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 }, (table) => ({

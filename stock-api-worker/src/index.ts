@@ -11,6 +11,7 @@ import { StatsEndpoint } from './endpoints/StatsEndpoint';
 import { GlobalNewsEndpoint } from './endpoints/GlobalNewsEndpoint';
 import { GlobalDocumentsEndpoint } from './endpoints/GlobalDocumentsEndpoint';
 import { GlobalResearchEndpoint } from './endpoints/GlobalResearchEndpoint';
+import { IngestAnnualReport, GetAnnualReportStatus } from './endpoints/AnnualReportEndpoints';
 
 type Env = {
   DB: D1Database;
@@ -30,7 +31,7 @@ app.use('/api/*', async (c, next) => {
   const method = c.req.method;
   const path = c.req.path;
 
-  if (['POST', 'PUT', 'DELETE'].includes(method)) {
+  if (['POST', 'PUT', 'DELETE'].includes(method) && !path.startsWith('/api/pipeline/')) {
     const apiKey = c.req.header('X-API-Key');
     const expectedKey = c.env.API_KEY || 'Luahoachungkhoan@ssi';
     
@@ -123,6 +124,8 @@ openapi.delete('/api/news/:id', DeleteNews);
 openapi.get('/api/documents', GlobalDocumentsEndpoint);
 openapi.post('/api/companies/:symbol/documents', CreateDocument);
 openapi.get('/api/documents/:id/view', ViewDocumentContent);
+openapi.post('/api/pipeline/annual-reports/ingest', IngestAnnualReport);
+openapi.get('/api/companies/:symbol/annual-reports', GetAnnualReportStatus);
 
 // Consolidated Pack for AI
 openapi.get('/api/companies/:symbol/pack', CompanyPackEndpoint);
