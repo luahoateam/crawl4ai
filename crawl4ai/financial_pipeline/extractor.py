@@ -1,5 +1,6 @@
 # crawl4ai/financial_pipeline/extractor.py
 import json
+import re
 from pathlib import Path
 
 class MultiPassExtractor:
@@ -9,10 +10,19 @@ class MultiPassExtractor:
 
     def run_pass(self, pass_number: int, ocr_data: str) -> dict:
         """
-        Mock implementation for pass 1 to satisfy initial test.
+        Implementation for Pass 1: Financials Extraction.
         """
         if pass_number == 1:
-            return {"net_revenue": 1000, "gross_profit": 500}
+            # Simulate extraction logic for demo purpose
+            revenue_match = re.search(r"Net Revenue: ([\d,]+)", ocr_data)
+            pbt_match = re.search(r"Profit Before Tax: ([\d,]+)", ocr_data)
+            assets_match = re.search(r"Total Assets: ([\d,]+)", ocr_data)
+            
+            return {
+                "net_revenue": int(revenue_match.group(1).replace(",", "")) * 1_000_000_000,
+                "profit_before_tax": int(pbt_match.group(1).replace(",", "")) * 1_000_000_000,
+                "total_assets": int(assets_match.group(1).replace(",", "")) * 1_000_000_000
+            }
         return {}
 
 class FinancialDataExtractor:
