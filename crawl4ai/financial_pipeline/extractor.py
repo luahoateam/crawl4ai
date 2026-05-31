@@ -10,7 +10,7 @@ class MultiPassExtractor:
 
     def run_pass(self, pass_number: int, ocr_data: str) -> dict:
         """
-        Implementation for Pass 1: Financials Extraction.
+        Implementation for Pass 1, 2, and 3 extraction.
         """
         if pass_number == 1:
             # Simulate extraction logic for demo purpose
@@ -23,6 +23,18 @@ class MultiPassExtractor:
                 "profit_before_tax": int(pbt_match.group(1).replace(",", "")) * 1_000_000_000,
                 "total_assets": int(assets_match.group(1).replace(",", "")) * 1_000_000_000
             }
+        elif pass_number == 2:
+            # Simulate extraction of events
+            match = re.search(r"Corporate Actions: (.*)\. Notes:", ocr_data)
+            if match:
+                return [{"description": match.group(1).strip()}]
+            return []
+        elif pass_number == 3:
+            # Simulate extraction of notes
+            match = re.search(r"Notes: (.*)", ocr_data)
+            if match:
+                return {"risk_factors": [match.group(1).strip()]}
+            return {"risk_factors": []}
         return {}
 
 class FinancialDataExtractor:
