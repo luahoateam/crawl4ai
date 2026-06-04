@@ -39,7 +39,15 @@ def execute_d1_query(command: str, max_retries: int = 3) -> list:
     
     for attempt in range(1, max_retries + 1):
         try:
-            result = subprocess.run(cmd, shell=is_windows, capture_output=True, text=True, timeout=45)
+            result = subprocess.run(
+                cmd, 
+                shell=is_windows, 
+                capture_output=True, 
+                text=True, 
+                encoding="utf-8",
+                errors="replace",
+                timeout=45
+            )
             if result.returncode != 0:
                 logger.error(f"D1 Query failed. Command: {command} (Attempt {attempt}/{max_retries})")
                 logger.error(f"Stderr: {result.stderr}")
@@ -198,22 +206,83 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
         
         local_md_path = None
         try:
-            client = PaddleOCRClient()
-            job_id = client.submit_job(pdf_url)
+            models_to_try = ["PaddleOCR-VL-1.6", "PaddleOCR-VL-1.5"]
+            results = None
+            last_error = None
             
-            # Save job_id in queue
-            update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
-            
-            # Poll for results
-            results = client.poll_job(job_id)
-            
-            # Build markdown
-            local_md_path = build_markdown_report(results, ticker, YEAR, output_dir="ocr_data/markdown")
+            for model in models_to_try:
+                # Try URL Mode first
+                try:
+                    logger.info(f"Attempting OCR using model {model} (URL Mode) for {ticker}...")
+                    client = PaddleOCRClient(model=model)
+                    job_id = client.submit_job(pdf_url)
+                    
+                    # Save job_id in queue
+                    update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
+                    
+                    # Poll for results
+                    results = client.poll_job(job_id)
+                    logger.info(f"Successfully completed OCR using model {model} (URL Mode) for {ticker}")
+                    break
+                except Exception as url_err:
+                    logger.warning(f"OCR URL Mode failed using model {model} for {ticker}: {url_err}")
+                    
+                    # Try Local File Mode as fallback
+                    try:
+                        logger.info(f"Attempting OCR using model {model} (Local File Mode) for {ticker}...")
+                        client = PaddleOCRClient(model=model)
+                        job_id = client.submit_job(local_pdf_path)
+                        
+                        # Save job_id in queue
+                        update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
+                        
+                        # Poll for results
+                        results = client.poll_job(job_id)
+                        logger.info(f"Successfully completed OCR using model {model} (Local File Mode) for {ticker}")
+                        break
+                    except Exception as file_err:
+                        last_error = file_err
+                        logger.warning(f"OCR Local File Mode failed using model {model} for {ticker}: {file_err}")
+                        if model != models_to_try[-1]:
+                            logger.warning(f"Retrying with fallback model...")
+                            time.sleep(5)
+                        
+            if results is None:
+                logger.warning(f"⚠️ All OCR models failed for {ticker}. Attempting local PDF text extraction using pypdf as fallback...")
+                try:
+                    import pypdf
+                    reader = pypdf.PdfReader(local_pdf_path)
+                    pages_text = []
+                    extracted_count = 0
+                    for page_idx, page in enumerate(reader.pages):
+                        text = page.extract_text()
+                        if text:
+                            pages_text.append(f"# Trang {page_idx+1}\n\n{text}")
+                            extracted_count += len(text)
+                        else:
+                            pages_text.append(f"# Trang {page_idx+1}\n\n[Trang không có văn bản hoặc là trang ảnh]")
+                    
+                    if extracted_count > 100:
+                        logger.info(f"Successfully extracted text locally from {len(reader.pages)} pages using pypdf ({extracted_count} characters).")
+                        os.makedirs("ocr_data/markdown", exist_ok=True)
+                        local_md_path = os.path.join("ocr_data/markdown", f"{ticker}_{YEAR}.md")
+                        with open(local_md_path, "w", encoding="utf-8") as f_out:
+                            f_out.write(f"# Báo cáo thường niên {ticker} {YEAR} (Trích xuất cục bộ)\n\n" + "\n\n".join(pages_text))
+                        logger.info(f"Local text markdown saved to {local_md_path}")
+                    else:
+                        raise Exception("Local extraction yielded too little text (likely a scanned PDF)")
+                except Exception as local_err:
+                    logger.error(f"Local fallback text extraction also failed for {ticker}: {local_err}")
+                    raise Exception(f"All OCR models failed. Last error: {last_error}. Local extract failed: {local_err}")
+            else:
+                # Build markdown
+                local_md_path = build_markdown_report(results, ticker, YEAR, output_dir="ocr_data/markdown")
             if not local_md_path:
                 raise Exception("Failed to build consolidated markdown file")
                 
             # Step 6: Upload to R2
-            r2_key = f"annual-reports/{YEAR}/{ticker}/report.md"
+            new_file_name = f"{ticker}_BCTN_{YEAR}.md"
+            r2_key = f"annual-reports/{YEAR}/{ticker}/{new_file_name}"
             upload_success = upload_to_r2(local_md_path, r2_key, bucket=BUCKET_NAME)
             if not upload_success:
                 raise Exception("Wrangler R2 upload failed")
@@ -224,7 +293,7 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
             payload = {
                 "ticker": ticker,
                 "year": YEAR,
-                "fileName": "report.md",
+                "fileName": new_file_name,
                 "fileUrl": f"{API_BASE_URL}/api/documents/temp/view",
                 "r2Key": r2_key,
                 "label": f"Báo cáo thường niên năm {YEAR} (PaddleOCR)",
@@ -259,12 +328,8 @@ def run_pipeline(limit: int = 5, tickers: List[str] = None):
                 except Exception as clean_err:
                     logger.error(f"Failed to delete {local_pdf_path}: {clean_err}")
                     
-            if local_md_path and os.path.exists(local_md_path):
-                try:
-                    os.remove(local_md_path)
-                    logger.info(f"Cleaned up local Markdown: {local_md_path}")
-                except Exception as clean_err:
-                    logger.error(f"Failed to delete {local_md_path}: {clean_err}")
+            # Keep local Markdown files as requested for local storage
+            pass
 
 def main():
     parser = argparse.ArgumentParser(description="Annual Report 2024 Pipeline Orchestrator")

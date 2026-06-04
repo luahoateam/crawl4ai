@@ -29,7 +29,8 @@ def upload_to_r2(local_path: str, r2_key: str, bucket: str = "stock-r2-bucket", 
     cmd = [
         "npx", "wrangler", "r2", "object", "put", 
         f"{bucket}/{r2_key}", 
-        f"--file={local_path}"
+        f"--file={local_path}",
+        "--remote"
     ]
     
     is_windows = platform.system() == "Windows"
@@ -42,6 +43,8 @@ def upload_to_r2(local_path: str, r2_key: str, bucket: str = "stock-r2-bucket", 
                 shell=is_windows, 
                 capture_output=True, 
                 text=True, 
+                encoding="utf-8",
+                errors="replace",
                 timeout=120
             )
             

@@ -15,9 +15,10 @@ class OCRJobException(Exception):
     pass
 
 class PaddleOCRClient:
-    def __init__(self, token: str = None):
+    def __init__(self, token: str = None, model: str = "PaddleOCR-VL-1.6"):
         # Allow loading token from environment or fallback to default
         self.token = token or os.environ.get("PADDLE_OCR_TOKEN", DEFAULT_TOKEN)
+        self.model = model
         # Use lowercase 'bearer' as in the official code example
         self.headers = {
             "Authorization": f"bearer {self.token}"
@@ -45,7 +46,7 @@ class PaddleOCRClient:
             headers["Content-Type"] = "application/json"
             payload = {
                 "fileUrl": file_path_or_url,
-                "model": "PaddleOCR-VL-1.6",
+                "model": self.model,
                 "optionalPayload": optional_payload
             }
             response = requests.post(JOB_URL, json=payload, headers=headers, timeout=300)
@@ -55,7 +56,7 @@ class PaddleOCRClient:
                 
             logger.info(f"Submitting OCR job via Local File Mode: {file_path_or_url}...")
             data = {
-                "model": "PaddleOCR-VL-1.6",
+                "model": self.model,
                 "optionalPayload": json.dumps(optional_payload)
             }
             

@@ -7,7 +7,7 @@ def test_upload_to_r2_success():
     mock_result = MagicMock()
     mock_result.returncode = 0
     
-    with patch('subprocess.run', return_value=mock_result) as mock_run, \
+    with patch('python.annual_report.r2_uploader.subprocess.run', return_value=mock_result) as mock_run, \
          patch('os.path.exists', return_value=True):
         success = upload_to_r2(
             local_path="scratch/VNM_2024.md",
@@ -26,12 +26,13 @@ def test_upload_to_r2_success():
         assert "put" in cmd
         assert "stock-r2-bucket/annual-reports/2024/VNM/report.md" in cmd
         assert "--file=scratch/VNM_2024.md" in cmd
+        assert "--remote" in cmd
 
 def test_upload_to_r2_failure():
     mock_result = MagicMock()
     mock_result.returncode = 1
     
-    with patch('subprocess.run', return_value=mock_result), \
+    with patch('python.annual_report.r2_uploader.subprocess.run', return_value=mock_result), \
          patch('os.path.exists', return_value=True):
         success = upload_to_r2(
             local_path="scratch/VNM_2024.md",
@@ -42,7 +43,7 @@ def test_upload_to_r2_failure():
         assert success is False
 
 def test_upload_to_r2_exception():
-    with patch('subprocess.run', side_effect=Exception("Wrangler executable not found")), \
+    with patch('python.annual_report.r2_uploader.subprocess.run', side_effect=Exception("Wrangler executable not found")), \
          patch('os.path.exists', return_value=True):
         success = upload_to_r2(
             local_path="scratch/VNM_2024.md",
