@@ -317,3 +317,6 @@ HANDOFF-*.md
 beads/
 /beads
 
+# Project specific ignored files
+stock_data/drizzle_backups/
+
