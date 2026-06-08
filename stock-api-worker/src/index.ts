@@ -1,17 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { fromHono } from 'chanfana';
-import { CompanyPackEndpoint } from './endpoints/CompanyPackEndpoint';
-import { ListCompanies, CreateCompany, DeleteCompany } from './endpoints/CompanyEndpoints';
-import { GetBusinessModel, UpdateBusinessModel, DeleteBusinessModel } from './endpoints/BusinessModelEndpoints';
-import { GetDailyResearch, UpdateDailyResearch, DeleteDailyResearch } from './endpoints/DailyResearchEndpoints';
-import { ListNews, CreateNews, GetNewsDetail, DeleteNews } from './endpoints/NewsEndpoints';
-import { ViewDocumentContent, CreateDocument } from './endpoints/DocumentEndpoints';
 import { StatsEndpoint } from './endpoints/StatsEndpoint';
-import { GlobalNewsEndpoint } from './endpoints/GlobalNewsEndpoint';
-import { GlobalDocumentsEndpoint } from './endpoints/GlobalDocumentsEndpoint';
-import { GlobalResearchEndpoint } from './endpoints/GlobalResearchEndpoint';
-import { IngestAnnualReport, GetAnnualReportStatus } from './endpoints/AnnualReportEndpoints';
+import companyRouter from './routes/company';
+import newsRouter from './routes/news';
+import documentRouter from './routes/document';
+import researchRouter from './routes/research';
+import pipelineRouter from './routes/pipeline';
 
 type Env = {
   DB: D1Database;
@@ -97,37 +92,11 @@ const openapi = fromHono(app, {
 // Stats
 openapi.get('/api/stats', StatsEndpoint);
 
-// Companies Profile
-openapi.get('/api/companies', ListCompanies);
-openapi.post('/api/companies', CreateCompany);
-openapi.delete('/api/companies/:symbol', DeleteCompany);
-
-// Business Model
-openapi.get('/api/companies/:symbol/business-model', GetBusinessModel);
-openapi.put('/api/companies/:symbol/business-model', UpdateBusinessModel);
-openapi.delete('/api/companies/:symbol/business-model', DeleteBusinessModel);
-
-// Daily Research
-openapi.get('/api/research', GlobalResearchEndpoint);
-openapi.get('/api/companies/:symbol/research', GetDailyResearch);
-openapi.put('/api/companies/:symbol/research', UpdateDailyResearch);
-openapi.delete('/api/companies/:symbol/research', DeleteDailyResearch);
-
-// News
-openapi.get('/api/news', GlobalNewsEndpoint);
-openapi.get('/api/companies/:symbol/news', ListNews);
-openapi.post('/api/companies/:symbol/news', CreateNews);
-openapi.get('/api/news/:id', GetNewsDetail);
-openapi.delete('/api/news/:id', DeleteNews);
-
-// OCR Documents
-openapi.get('/api/documents', GlobalDocumentsEndpoint);
-openapi.post('/api/companies/:symbol/documents', CreateDocument);
-openapi.get('/api/documents/:id/view', ViewDocumentContent);
-openapi.post('/api/pipeline/annual-reports/ingest', IngestAnnualReport);
-openapi.get('/api/companies/:symbol/annual-reports', GetAnnualReportStatus);
-
-// Consolidated Pack for AI
-openapi.get('/api/companies/:symbol/pack', CompanyPackEndpoint);
+// Mount Sub-routers
+openapi.route('/api/companies', companyRouter);
+openapi.route('/api/news', newsRouter);
+openapi.route('/api/documents', documentRouter);
+openapi.route('/api/research', researchRouter);
+openapi.route('/api/pipeline', pipelineRouter);
 
 export default app;

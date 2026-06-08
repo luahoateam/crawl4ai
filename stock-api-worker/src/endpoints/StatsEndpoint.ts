@@ -27,11 +27,10 @@ export class StatsEndpoint extends OpenAPIRoute {
 
   async handle(c: any) {
     if (!c.env.DB) {
-      c.status(500);
-      return {
+      return c.json({
         success: false,
         error: 'Database connection binding (DB) is missing or unavailable',
-      };
+      }, 500);
     }
 
     try {
@@ -67,11 +66,10 @@ export class StatsEndpoint extends OpenAPIRoute {
         'Cache-Control': 'public, max-age=3600, s-maxage=3600',
       });
     } catch (err: any) {
-      c.status(500);
-      return {
+      return c.json({
         success: false,
         error: `Database query failed: ${err.message}`,
-      };
+      }, 500);
     }
   }
 }

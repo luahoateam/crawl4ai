@@ -95,6 +95,17 @@ export class IngestAnnualReport extends OpenAPIRoute {
       WHERE id = ${queueId}
     `.execute();
     
+    // 3. Cập nhật quota trang đã sử dụng
+    const todayStr = new Date().toISOString().split('T')[0];
+    await sql`
+      INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES (${todayStr}, 0)
+    `.execute();
+    await sql`
+      UPDATE daily_quota_log 
+      SET pages_used = pages_used + ${body.pageCount}
+      WHERE date = ${todayStr}
+    `.execute();
+    
     return { success: true, documentId: docId };
   }
 }
@@ -164,6 +175,175 @@ export class GetAnnualReportStatus extends OpenAPIRoute {
         errorMsg: item.error_msg,
         updatedAt: item.updated_at ? new Date(item.updated_at * 1000).toISOString() : undefined,
       }
+    };
+  }
+}
+
+// Schema input cho update status
+export const QueueStatusUpdateSchema = z.object({
+  ticker: z.string().transform(s => s.toUpperCase()),
+  year: z.number().int().default(2024),
+  status: z.string(),
+  pdfUrl: z.string().url().optional().nullable(),
+  ocrJobId: z.string().optional().nullable(),
+  errorMsg: z.string().optional().nullable(),
+  pageCount: z.number().int().optional().nullable()
+});
+
+/**
+ * POST /api/pipeline/annual-reports/update-status
+ * Endpoint nội bộ cập nhật trạng thái hàng đợi từ pipeline.
+ */
+export class UpdateAnnualReportStatus extends OpenAPIRoute {
+  schema = {
+    tags: ["Pipeline Internal"],
+    summary: "Update processing status of a ticker in the annual report queue",
+    request: {
+      body: contentJson(QueueStatusUpdateSchema)
+    },
+    responses: {
+      "200": {
+        description: "Successfully updated status",
+        ...contentJson(z.object({
+          success: z.boolean()
+        }))
+      }
+    }
+  };
+
+  async handle(c: any) {
+    const data = await this.getValidatedData<typeof this.schema>();
+    const body = data.body;
+    const now = Math.floor(Date.now() / 1000);
+    // @ts-ignore
+    const sql = waddler({ client: c.env.DB });
+    const queueId = `${body.ticker}_${body.year}`;
+    
+    if (body.status === 'failed') {
+      await sql`
+        UPDATE annual_report_queue 
+        SET status = ${body.status}, error_msg = ${body.errorMsg || 'Unknown error'}, attempts = attempts + 1, updated_at = ${now}
+        WHERE id = ${queueId}
+      `.execute();
+    } else if (body.status === 'crawling') {
+      await sql`
+        UPDATE annual_report_queue 
+        SET status = ${body.status}, updated_at = ${now}
+        WHERE id = ${queueId}
+      `.execute();
+    } else if (body.status === 'downloading') {
+      await sql`
+        UPDATE annual_report_queue 
+        SET status = ${body.status}, pdf_url = ${body.pdfUrl}, updated_at = ${now}
+        WHERE id = ${queueId}
+      `.execute();
+    } else if (body.status === 'ocr_submitted') {
+      await sql`
+        UPDATE annual_report_queue 
+        SET status = ${body.status}, ocr_job_id = ${body.ocrJobId}, updated_at = ${now}
+        WHERE id = ${queueId}
+      `.execute();
+    } else {
+      await sql`
+        UPDATE annual_report_queue 
+        SET status = ${body.status}, pdf_url = COALESCE(${body.pdfUrl}, pdf_url), ocr_job_id = COALESCE(${body.ocrJobId}, ocr_job_id), error_msg = COALESCE(${body.errorMsg}, error_msg), page_count = COALESCE(${body.pageCount}, page_count), updated_at = ${now}
+        WHERE id = ${queueId}
+      `.execute();
+    }
+    
+    return { success: true };
+  }
+}
+
+/**
+ * GET /api/pipeline/annual-reports/pending
+ * Endpoint nội bộ lấy danh sách tickers pending từ hàng đợi.
+ */
+export class GetPendingAnnualReports extends OpenAPIRoute {
+  schema = {
+    tags: ["Pipeline Internal"],
+    summary: "Get pending tickers from queue for processing",
+    request: {
+      query: z.object({
+        limit: z.coerce.number().int().default(5)
+      })
+    },
+    responses: {
+      "200": {
+        description: "List of pending tickers",
+        ...contentJson(z.object({
+          success: z.boolean(),
+          results: z.array(z.object({
+            ticker: z.string(),
+            status: z.string(),
+            attempts: z.number()
+          }))
+        }))
+      }
+    }
+  };
+
+  async handle(c: any) {
+    const data = await this.getValidatedData<typeof this.schema>();
+    const limit = data.query.limit;
+    // @ts-ignore
+    const sql = waddler({ client: c.env.DB });
+    
+    const results = await sql`
+      SELECT ticker, status, attempts FROM annual_report_queue
+      WHERE status = 'pending' OR (status = 'failed' AND attempts < 3)
+      LIMIT ${limit}
+    `.all();
+    
+    return {
+      success: true,
+      results: results.map((r: any) => ({
+        ticker: r.ticker,
+        status: r.status,
+        attempts: r.attempts
+      }))
+    };
+  }
+}
+
+/**
+ * GET /api/pipeline/annual-reports/quota
+ * Endpoint nội bộ lấy trạng thái quota trang ngày hôm nay.
+ */
+export class GetDailyQuota extends OpenAPIRoute {
+  schema = {
+    tags: ["Pipeline Internal"],
+    summary: "Get daily page quota status for today",
+    responses: {
+      "200": {
+        description: "Quota info",
+        ...contentJson(z.object({
+          success: z.boolean(),
+          pagesUsed: z.number(),
+          pagesLimit: z.number()
+        }))
+      }
+    }
+  };
+
+  async handle(c: any) {
+    // @ts-ignore
+    const sql = waddler({ client: c.env.DB });
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    await sql`
+      INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES (${todayStr}, 0)
+    `.execute();
+    
+    const results = await sql`
+      SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = ${todayStr}
+      LIMIT 1
+    `.all();
+    
+    return {
+      success: true,
+      pagesUsed: results[0].pages_used,
+      pagesLimit: results[0].pages_limit || 19500
     };
   }
 }

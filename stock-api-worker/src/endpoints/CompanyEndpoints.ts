@@ -148,3 +148,83 @@ export class DeleteCompany extends OpenAPIRoute {
     return { success: true };
   }
 }
+
+export class GetCompanyProfile extends OpenAPIRoute {
+  schema = {
+    tags: ['Companies'],
+    summary: 'Get a company profile by symbol',
+    request: {
+      params: z.object({
+        symbol: z.string().transform(s => s.toUpperCase()).describe('Stock symbol'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Successful retrieval',
+        ...contentJson(z.object({
+          success: z.boolean(),
+          result: CompanySchema,
+        })),
+      },
+      ...NotFoundException.schema(),
+    },
+  };
+
+  async handle(c: any) {
+    if (!c.env.DB) {
+      return c.json({
+        success: false,
+        error: 'Database connection binding (DB) is missing',
+      }, 500);
+    }
+
+    const data = await this.getValidatedData<typeof this.schema>();
+    const symbol = data.params.symbol;
+
+    try {
+      // @ts-ignore
+      const sql = waddler({ client: c.env.DB });
+      const results = await sql`
+        SELECT c.symbol, c.exchange, c.industry, c.updated_at,
+          CASE WHEN bm.symbol IS NOT NULL THEN 1 ELSE 0 END as has_bm,
+          CASE WHEN dr.symbol IS NOT NULL THEN 1 ELSE 0 END as has_research,
+          COALESCE(ni.cnt, 0) as news_count,
+          COALESCE(fd.cnt, 0) as doc_count
+        FROM companies c
+        LEFT JOIN business_models bm ON bm.symbol = c.symbol
+        LEFT JOIN daily_research dr ON dr.symbol = c.symbol
+        LEFT JOIN (SELECT symbol, COUNT(*) cnt FROM news_index GROUP BY symbol) ni ON ni.symbol = c.symbol
+        LEFT JOIN (SELECT symbol, COUNT(*) cnt FROM financial_documents GROUP BY symbol) fd ON fd.symbol = c.symbol
+        WHERE c.symbol = ${symbol}
+      `.all();
+
+      if (results.length === 0) {
+        return c.json({
+          success: false,
+          error: 'Company not found',
+        }, 404);
+      }
+
+      const r = results[0];
+      return c.json({
+        success: true,
+        result: {
+          symbol: r.symbol,
+          exchange: r.exchange,
+          industry: r.industry,
+          updatedAt: r.updated_at,
+          hasBusinessModel: Boolean(r.has_bm),
+          hasResearch: Boolean(r.has_research),
+          newsCount: Number(r.news_count),
+          docCount: Number(r.doc_count),
+        },
+      });
+    } catch (err: any) {
+      return c.json({
+        success: false,
+        error: `Query failed: ${err.message}`,
+      }, 500);
+    }
+  }
+}
+
