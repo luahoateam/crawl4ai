@@ -1,0 +1,5 @@
+output/
+progress.json
+progress.json.tmp
+__pycache__/
+*.pyc
