@@ -3,3 +3,7 @@ progress.json
 progress.json.tmp
 __pycache__/
 *.pyc
+.env
+data/superinvestors/
+__pycache__/
+.pytest_cache/
