@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from pathlib import Path
 import aiofiles
 import httpx
@@ -67,6 +68,39 @@ class ResultWriter:
             logger.info(f"[{pdf_stem}] Completed downloading all images.")
         else:
             logger.info(f"[{pdf_stem}] No images to download.")
+
+        # Merge all page markdown files into a single combined file
+        await self._merge_pages(pdf_output_dir, pdf_stem)
+
+    async def _merge_pages(self, pdf_output_dir: Path, pdf_stem: str):
+        """Ghép tất cả doc_*.md trong thư mục thành một file <pdf_stem>.md duy nhất."""
+        def _natural_key(p: Path) -> list:
+            parts = re.split(r"(\d+)", p.stem)
+            return [int(x) if x.isdigit() else x.lower() for x in parts]
+
+        md_files = sorted(pdf_output_dir.glob("doc_*.md"), key=_natural_key)
+        if not md_files:
+            logger.warning(f"[{pdf_stem}] No doc_*.md files found, skipping merge.")
+            return
+
+        segments = []
+        for idx, md_file in enumerate(md_files, start=1):
+            try:
+                async with aiofiles.open(md_file, "r", encoding="utf-8") as f:
+                    content = (await f.read()).strip()
+            except Exception as e:
+                logger.error(f"[{pdf_stem}] Cannot read {md_file.name}: {e}")
+                content = f"*[Lỗi đọc file: {e}]*"
+            segments.append(f"## Trang {idx}\n\n{content}")
+
+        merged = "\n\n---\n".join(segments) + "\n"
+        output_file = pdf_output_dir / f"{pdf_stem}.md"
+        try:
+            async with aiofiles.open(output_file, "w", encoding="utf-8") as f:
+                await f.write(merged)
+            logger.info(f"[{pdf_stem}] Merged {len(md_files)} pages -> {output_file.name}")
+        except Exception as e:
+            logger.error(f"[{pdf_stem}] Failed to write merged file: {e}")
 
     async def _download_image(self, url: str, path: Path):
         """Helper to download a single image asynchronously."""

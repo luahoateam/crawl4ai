@@ -7,7 +7,7 @@ import json
 async def test_run_actor_starts_and_returns_run_id(httpx_mock):
     # Giả lập API Apify trả về run_id
     httpx_mock.add_response(
-        url="https://api.apify.com/v2/acts/parsebird/superinvestor-scraper/runs?token=fake_token",
+        url="https://api.apify.com/v2/acts/parsebird~superinvestor-scraper/runs?token=fake_token",
         json={"data": {"id": "run_123", "defaultDatasetId": "ds_123"}},
         method="POST"
     )
@@ -22,9 +22,9 @@ async def test_run_actor_starts_and_returns_run_id(httpx_mock):
 async def test_partition_and_save_data(tmp_path):
     # Dữ liệu mẫu trộn lẫn 2 nhà đầu tư
     items = [
-        {"investorName": "Buffett", "ticker": "AAPL"},
-        {"investorName": "Burry", "ticker": "BABA"},
-        {"investorName": "Buffett", "ticker": "KO"}
+        {"superinvestorName": "Buffett", "ticker": "AAPL"},
+        {"superinvestorName": "Burry", "ticker": "BABA"},
+        {"superinvestorName": "Buffett", "ticker": "KO"}
     ]
     
     fetcher = SuperinvestorFetcher(token="fake")
