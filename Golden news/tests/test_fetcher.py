@@ -1,13 +1,22 @@
 import pytest
 from scripts.fetch_investors import SuperinvestorFetcher
-
 from pathlib import Path
 import json
 
 @pytest.mark.asyncio
 async def test_run_actor_starts_and_returns_run_id(httpx_mock):
-    # ... (giữ nguyên)
-    pass
+    # Giả lập API Apify trả về run_id
+    httpx_mock.add_response(
+        url="https://api.apify.com/v2/acts/parsebird/superinvestor-scraper/runs?token=fake_token",
+        json={"data": {"id": "run_123", "defaultDatasetId": "ds_123"}},
+        method="POST"
+    )
+    
+    fetcher = SuperinvestorFetcher(token="fake_token")
+    run_id, dataset_id = await fetcher.start_actor()
+    
+    assert run_id == "run_123"
+    assert dataset_id == "ds_123"
 
 @pytest.mark.asyncio
 async def test_partition_and_save_data(tmp_path):
