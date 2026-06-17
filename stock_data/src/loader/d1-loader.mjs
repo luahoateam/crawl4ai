@@ -166,10 +166,11 @@ export class D1Loader {
     }
 
     // 5.5 Financial Insights SQL
-    if (enrichedData.financial_insights) {
+    if (enrichedData.financial_insights || enrichedData.business_risks) {
       sqlStatements.push(`DELETE FROM financial_insights WHERE ticker = '${ticker}' AND year = ${year} AND report_type = '${reportType}';`);
       
-      const insights = enrichedData.financial_insights;
+      const insights = enrichedData.financial_insights || {};
+      const businessRisks = enrichedData.business_risks || insights.business_risks;
       const data = {
         id: reportId,
         ticker,
@@ -179,9 +180,30 @@ export class D1Loader {
         debt_risk: insights.debt_risk || null,
         inventory_risk: insights.inventory_risk || null,
         governance_risk_score: insights.governance_risk_score !== undefined ? insights.governance_risk_score : null,
-        overall_analysis: insights.overall_analysis || null
+        overall_analysis: insights.overall_analysis || null,
+        business_risks: businessRisks ? (typeof businessRisks === 'string' ? businessRisks : JSON.stringify(businessRisks)) : null
       };
       sqlStatements.push(buildInsertSql('financial_insights', data));
+    }
+
+    // 5.6 Shareholder Structures SQL
+    if (Array.isArray(enrichedData.shareholder_structures)) {
+      sqlStatements.push(`DELETE FROM shareholder_structures WHERE ticker = '${ticker}' AND year = ${year};`);
+      
+      enrichedData.shareholder_structures.forEach((sh, index) => {
+        const data = {
+          id: `${ticker}_${year}_${index}`,
+          ticker,
+          year,
+          shareholder_name: sh.shareholder_name,
+          shareholder_type: sh.shareholder_type,
+          share_count: sh.share_count !== undefined ? sh.share_count : null,
+          share_percentage: sh.share_percentage,
+          is_major_shareholder: sh.is_major_shareholder ? 1 : 0,
+          is_board_member: sh.is_board_member ? 1 : 0
+        };
+        sqlStatements.push(buildInsertSql('shareholder_structures', data));
+      });
     }
 
     // 6. Record Processed Report (Idempotency Journal)

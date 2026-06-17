@@ -119,4 +119,111 @@ describe('D1 Loader', () => {
     expect(result.results[0].governance_risk_score).toBe(8);
     expect(result.results[0].overall_analysis).toBe('Doanh nghiệp có rủi ro thanh khoản cao');
   }, 60000);
+
+  it('should insert and verify shareholder_structures (Cycle 3)', async () => {
+    // Ensure company exists
+    await testDb.run(
+      "INSERT OR REPLACE INTO companies (ticker, company_name, business_model) VALUES ('TCB', 'Techcombank', 'bank')"
+    );
+
+    const loader = new D1Loader();
+    const mockShareholders = [
+      {
+        shareholder_name: 'Cổ đông lớn A',
+        shareholder_type: 'domestic_institutional',
+        share_count: 1000000,
+        share_percentage: 15.5,
+        is_major_shareholder: true,
+        is_board_member: false
+      },
+      {
+        shareholder_name: 'Cổ đông B',
+        shareholder_type: 'foreign',
+        share_count: 500000,
+        share_percentage: 7.75,
+        is_major_shareholder: true,
+        is_board_member: true
+      }
+    ];
+
+    // Lần 1: Lưu dữ liệu
+    await loader.save('TCB', 2024, 'annual_report', {
+      shareholder_structures: mockShareholders
+    }, { businessModel: 'bank' });
+
+    let result = await testDb.run(
+      "SELECT id, shareholder_name, shareholder_type, share_percentage, is_board_member FROM shareholder_structures WHERE ticker = 'TCB' AND year = 2024 ORDER BY id"
+    );
+    expect(result.results.length).toBe(2);
+    expect(result.results[0].shareholder_name).toBe('Cổ đông lớn A');
+    expect(result.results[0].shareholder_type).toBe('domestic_institutional');
+    expect(result.results[0].share_percentage).toBe(15.5);
+    expect(result.results[1].is_board_member).toBe(1); // SQLite boolean logic (1/0)
+
+    // Lần 2: Chạy lại để test Idempotency (DELETE + INSERT)
+    await loader.save('TCB', 2024, 'annual_report', {
+      shareholder_structures: [
+        {
+          shareholder_name: 'Cổ đông lớn A',
+          shareholder_type: 'domestic_institutional',
+          share_count: 1000000,
+          share_percentage: 15.5,
+          is_major_shareholder: true,
+          is_board_member: false
+        }
+      ]
+    }, { businessModel: 'bank' });
+
+    result = await testDb.run(
+      "SELECT shareholder_name FROM shareholder_structures WHERE ticker = 'TCB' AND year = 2024"
+    );
+    expect(result.results.length).toBe(1);
+    expect(result.results[0].shareholder_name).toBe('Cổ đông lớn A');
+
+    // Lần 3: Mảng rỗng -> xóa sạch dữ liệu cũ
+    await loader.save('TCB', 2024, 'annual_report', {
+      shareholder_structures: []
+    }, { businessModel: 'bank' });
+
+    result = await testDb.run(
+      "SELECT shareholder_name FROM shareholder_structures WHERE ticker = 'TCB' AND year = 2024"
+    );
+    expect(result.results.length).toBe(0);
+  }, 60000);
+
+  it('should upsert and verify business_risks in financial_insights (Cycle 4)', async () => {
+    // Ensure company exists
+    await testDb.run(
+      "INSERT OR REPLACE INTO companies (ticker, company_name, business_model) VALUES ('TCB', 'Techcombank', 'bank')"
+    );
+
+    const loader = new D1Loader();
+    const mockRisks = [
+      { category: 'Rủi ro thị trường', description: 'Biến động lãi suất' },
+      { category: 'Rủi ro tài chính', description: 'Nợ xấu tăng' }
+    ];
+
+    await loader.save('TCB', 2024, 'annual_report', {
+      business_risks: mockRisks
+    }, { businessModel: 'bank' });
+
+    let result = await testDb.run(
+      "SELECT business_risks FROM financial_insights WHERE id = 'TCB_2024_annual_report'"
+    );
+    expect(result.results.length).toBe(1);
+    const parsed = JSON.parse(result.results[0].business_risks);
+    expect(parsed.length).toBe(2);
+    expect(parsed[0].category).toBe('Rủi ro thị trường');
+    expect(parsed[1].description).toBe('Nợ xấu tăng');
+
+    // Mảng rỗng -> lưu '[]'
+    await loader.save('TCB', 2024, 'annual_report', {
+      business_risks: []
+    }, { businessModel: 'bank' });
+
+    result = await testDb.run(
+      "SELECT business_risks FROM financial_insights WHERE id = 'TCB_2024_annual_report'"
+    );
+    expect(result.results[0].business_risks).toBe('[]');
+  }, 60000);
 });

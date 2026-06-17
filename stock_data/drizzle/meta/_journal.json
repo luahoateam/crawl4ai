@@ -29,6 +29,13 @@
       "when": 1780622040952,
       "tag": "0003_careless_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781739757377,
+      "tag": "0004_fat_the_renegades",
+      "breakpoints": true
     }
   ]
 }

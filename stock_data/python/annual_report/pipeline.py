@@ -1,347 +1,87 @@
 import argparse
-import sys
 import json
-import logging
-import subprocess
-import requests
-import datetime
+import sys
 import os
-import time
-from typing import List, Optional
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("pipeline")
-
-# Try relative imports, fallback to standard imports for different running environments
-try:
-    from python.annual_report.pdf_crawler import crawl_pdf_link
-    from python.annual_report.pdf_downloader import download_pdf_and_count_pages
-    from python.annual_report.ocr_client import PaddleOCRClient
-    from python.annual_report.md_builder import build_markdown_report
-    from python.annual_report.r2_uploader import upload_to_r2
-except ImportError:
-    # If python prefix is missing from PYTHONPATH
-    from pdf_crawler import crawl_pdf_link
-    from pdf_downloader import download_pdf_and_count_pages
-    from ocr_client import PaddleOCRClient
-    from md_builder import build_markdown_report
-    from r2_uploader import upload_to_r2
-
-YEAR = 2024
-BUCKET_NAME = "stock-contents"  # Wrangler R2 bucket name
-API_BASE_URL = "https://stock-api-worker.luahoateam.workers.dev"
-
-def execute_d1_query(command: str, max_retries: int = 3) -> list:
-    """Executes a SQL command on D1 via Wrangler CLI and returns JSON results, with retries. Used as fallback."""
-    cmd = ["npx", "wrangler", "d1", "execute", "DB", "--remote", f"--command={command}", "--json"]
-    is_windows = os.name == 'nt'
-    
-    for attempt in range(1, max_retries + 1):
-        try:
-            result = subprocess.run(
-                cmd, 
-                shell=is_windows, 
-                capture_output=True, 
-                text=True, 
-                encoding="utf-8",
-                errors="replace",
-                timeout=45
-            )
-            if result.returncode != 0:
-                logger.error(f"D1 Query failed. Command: {command} (Attempt {attempt}/{max_retries})")
-                logger.error(f"Stderr: {result.stderr}")
-                raise Exception(f"D1 Query failed with exit code {result.returncode}")
-            
-            # Parse wrangler output
-            data = json.loads(result.stdout)
-            if isinstance(data, list) and len(data) > 0:
-                return data[0].get("results", [])
-            return []
-        except Exception as e:
-            logger.error(f"Exception running D1 command: {e} (Attempt {attempt}/{max_retries})")
-            if attempt == max_retries:
-                raise e
-            time.sleep(5)
-
-def update_queue_status(ticker: str, status: str, pdf_url: str = None, ocr_job_id: str = None, error_msg: str = None, page_count: int = None, max_retries: int = 3) -> bool:
-    """Updates the annual report queue status in D1 via the Worker API, with retries."""
-    api_url = f"{API_BASE_URL}/api/pipeline/annual-reports/update-status"
-    payload = {
-        "ticker": ticker,
-        "year": YEAR,
-        "status": status,
-        "pdfUrl": pdf_url,
-        "ocrJobId": ocr_job_id,
-        "errorMsg": error_msg,
-        "pageCount": page_count
-    }
-    
-    for attempt in range(1, max_retries + 1):
-        try:
-            resp = requests.post(api_url, json=payload, timeout=20)
-            if resp.status_code == 200 and resp.json().get("success"):
-                return True
-            logger.error(f"Failed to update status {status} for {ticker} via API (Attempt {attempt}/{max_retries}): {resp.text}")
-        except Exception as e:
-            logger.error(f"Exception during update status for {ticker} via API (Attempt {attempt}/{max_retries}): {e}")
-            
-        if attempt < max_retries:
-            time.sleep(3)
-            
-    # Fallback to D1 CLI if API fails completely
-    logger.warning(f"⚠️ API status update failed for {ticker}. Falling back to D1 CLI...")
-    row_id = f"{ticker}_{YEAR}"
-    try:
-        if status == 'failed':
-            escaped_err = str(error_msg).replace("'", "''").replace("\n", " ") if error_msg else "Unknown error"
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'failed', error_msg = '{escaped_err}', attempts = attempts + 1, updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-        elif status == 'crawling':
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'crawling', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-        elif status == 'downloading':
-            escaped_pdf = str(pdf_url).replace("'", "''")
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'downloading', pdf_url = '{escaped_pdf}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-        elif status == 'ocr_submitted':
-            execute_d1_query(f"UPDATE annual_report_queue SET status = 'ocr_submitted', ocr_job_id = '{ocr_job_id}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-        else:
-            execute_d1_query(f"UPDATE annual_report_queue SET status = '{status}', updated_at = strftime('%s','now') WHERE id = '{row_id}'")
-        return True
-    except Exception as cli_err:
-        logger.error(f"CLI Fallback also failed for {ticker}: {cli_err}")
-        return False
-
-def run_pipeline(limit: int = 5, tickers: List[str] = None):
-    logger.info("Starting Annual Report 2024 pipeline...")
-    
-    # 1. Determine tickers to process
-    if tickers:
-        logger.info(f"Processing manual tickers list: {tickers}")
-        items = [{"ticker": t.upper()} for t in tickers]
-    else:
-        logger.info(f"Fetching {limit} pending tickers from Worker API...")
-        try:
-            api_url = f"{API_BASE_URL}/api/pipeline/annual-reports/pending?limit={limit}"
-            resp = requests.get(api_url, timeout=30)
-            items = []
-            if resp.status_code == 200 and resp.json().get("success"):
-                items = resp.json().get("results", [])
-            else:
-                logger.error(f"Failed to fetch pending tickers via API: {resp.text}")
-                # Fallback to D1 CLI
-                query = f"SELECT ticker FROM annual_report_queue WHERE status = 'pending' OR (status = 'failed' AND attempts < 3) LIMIT {limit}"
-                items = execute_d1_query(query)
-        except Exception as e:
-            logger.error(f"Exception fetching pending tickers from API: {e}")
-            query = f"SELECT ticker FROM annual_report_queue WHERE status = 'pending' OR (status = 'failed' AND attempts < 3) LIMIT {limit}"
-            items = execute_d1_query(query)
-        
-    if not items:
-        logger.info("No pending tickers found in the queue. Done.")
-        return
-        
-    for item in items:
-        ticker = item["ticker"]
-        logger.info(f"\n=========================================")
-        logger.info(f"Processing ticker: {ticker}")
-        
-        # Set status to crawling
-        update_queue_status(ticker, 'crawling')
-        
-        # Step 2: Crawl link PDF
-        pdf_url = crawl_pdf_link(ticker, YEAR)
-        if not pdf_url:
-            logger.error(f"Annual report PDF link for {ticker} ({YEAR}) not found!")
-            update_queue_status(ticker, 'no_report_found', error_msg='Link PDF not found')
-            continue
-            
-        # Save pdf_url and update status to downloading
-        update_queue_status(ticker, 'downloading', pdf_url=pdf_url)
-        
-        # Step 3: Download PDF and count pages
-        local_pdf_path, page_count = download_pdf_and_count_pages(pdf_url, ticker, YEAR, temp_dir="ocr_data/temp_pdf")
-        if not local_pdf_path or page_count == 0:
-            logger.error(f"Failed to download and count PDF for {ticker} ({YEAR})!")
-            update_queue_status(ticker, 'failed', error_msg='Download failed or PDF is corrupted')
-            continue
-            
-        # Step 4: Check daily quota limits via API
-        pages_used = 0
-        pages_limit = 19500
-        try:
-            quota_url = f"{API_BASE_URL}/api/pipeline/annual-reports/quota"
-            resp = requests.get(quota_url, timeout=20)
-            if resp.status_code == 200 and resp.json().get("success"):
-                pages_used = resp.json().get("pagesUsed", 0)
-                pages_limit = resp.json().get("pagesLimit", 19500)
-            else:
-                logger.error(f"Failed to fetch daily quota via API: {resp.text}")
-                # Fallback to D1 CLI
-                today = datetime.date.today().isoformat()
-                execute_d1_query(f"INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES ('{today}', 0)")
-                quota_results = execute_d1_query(f"SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = '{today}'")
-                if quota_results:
-                    pages_used = quota_results[0].get("pages_used", 0)
-                    pages_limit = quota_results[0].get("pages_limit", 19500)
-        except Exception as e:
-            logger.error(f"Exception fetching quota via API: {e}")
-            # Fallback to D1 CLI
-            today = datetime.date.today().isoformat()
-            execute_d1_query(f"INSERT OR IGNORE INTO daily_quota_log (date, pages_used) VALUES ('{today}', 0)")
-            quota_results = execute_d1_query(f"SELECT pages_used, pages_limit FROM daily_quota_log WHERE date = '{today}'")
-            if quota_results:
-                pages_used = quota_results[0].get("pages_used", 0)
-                pages_limit = quota_results[0].get("pages_limit", 19500)
-            
-        if pages_used + page_count > pages_limit:
-            logger.warning(f"⚠️ Daily quota limit reached! (Used: {pages_used}, Required for {ticker}: {page_count}, Limit: {pages_limit}). Skipping this run.")
-            if os.path.exists(local_pdf_path):
-                os.remove(local_pdf_path)
-            # Reset status of this ticker back to pending since it was not processed due to quota limits
-            update_queue_status(ticker, 'pending')
-            break
-            
-        # Step 5: Submit OCR Job
-        logger.info(f"Submitting OCR job for {ticker} ({page_count} pages)...")
-        update_queue_status(ticker, 'ocr_submitted')
-        
-        local_md_path = None
-        try:
-            models_to_try = ["PaddleOCR-VL-1.6", "PaddleOCR-VL-1.5"]
-            results = None
-            last_error = None
-            
-            for model in models_to_try:
-                # Try URL Mode first
-                try:
-                    logger.info(f"Attempting OCR using model {model} (URL Mode) for {ticker}...")
-                    client = PaddleOCRClient(model=model)
-                    job_id = client.submit_job(pdf_url)
-                    
-                    # Save job_id in queue
-                    update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
-                    
-                    # Poll for results
-                    results = client.poll_job(job_id)
-                    logger.info(f"Successfully completed OCR using model {model} (URL Mode) for {ticker}")
-                    break
-                except Exception as url_err:
-                    logger.warning(f"OCR URL Mode failed using model {model} for {ticker}: {url_err}")
-                    
-                    # Try Local File Mode as fallback
-                    try:
-                        logger.info(f"Attempting OCR using model {model} (Local File Mode) for {ticker}...")
-                        client = PaddleOCRClient(model=model)
-                        job_id = client.submit_job(local_pdf_path)
-                        
-                        # Save job_id in queue
-                        update_queue_status(ticker, 'ocr_submitted', ocr_job_id=job_id)
-                        
-                        # Poll for results
-                        results = client.poll_job(job_id)
-                        logger.info(f"Successfully completed OCR using model {model} (Local File Mode) for {ticker}")
-                        break
-                    except Exception as file_err:
-                        last_error = file_err
-                        logger.warning(f"OCR Local File Mode failed using model {model} for {ticker}: {file_err}")
-                        if model != models_to_try[-1]:
-                            logger.warning(f"Retrying with fallback model...")
-                            time.sleep(5)
-                        
-            if results is None:
-                logger.warning(f"⚠️ All OCR models failed for {ticker}. Attempting local PDF text extraction using pypdf as fallback...")
-                try:
-                    import pypdf
-                    reader = pypdf.PdfReader(local_pdf_path)
-                    pages_text = []
-                    extracted_count = 0
-                    for page_idx, page in enumerate(reader.pages):
-                        text = page.extract_text()
-                        if text:
-                            pages_text.append(f"# Trang {page_idx+1}\n\n{text}")
-                            extracted_count += len(text)
-                        else:
-                            pages_text.append(f"# Trang {page_idx+1}\n\n[Trang không có văn bản hoặc là trang ảnh]")
-                    
-                    if extracted_count > 100:
-                        logger.info(f"Successfully extracted text locally from {len(reader.pages)} pages using pypdf ({extracted_count} characters).")
-                        os.makedirs("ocr_data/markdown", exist_ok=True)
-                        local_md_path = os.path.join("ocr_data/markdown", f"{ticker}_{YEAR}.md")
-                        with open(local_md_path, "w", encoding="utf-8") as f_out:
-                            f_out.write(f"# Báo cáo thường niên {ticker} {YEAR} (Trích xuất cục bộ)\n\n" + "\n\n".join(pages_text))
-                        logger.info(f"Local text markdown saved to {local_md_path}")
-                    else:
-                        raise Exception("Local extraction yielded too little text (likely a scanned PDF)")
-                except Exception as local_err:
-                    logger.error(f"Local fallback text extraction also failed for {ticker}: {local_err}")
-                    raise Exception(f"All OCR models failed. Last error: {last_error}. Local extract failed: {local_err}")
-            else:
-                # Build markdown
-                local_md_path = build_markdown_report(results, ticker, YEAR, output_dir="ocr_data/markdown")
-            if not local_md_path:
-                raise Exception("Failed to build consolidated markdown file")
-                
-            # Step 6: Upload to R2
-            new_file_name = f"{ticker}_BCTN_{YEAR}.md"
-            r2_key = f"annual-reports/{YEAR}/{ticker}/{new_file_name}"
-            upload_success = upload_to_r2(local_md_path, r2_key, bucket=BUCKET_NAME)
-            if not upload_success:
-                raise Exception("Wrangler R2 upload failed")
-                
-            # Step 7: Ingest to Worker API (automatically updates status to 'done' and logs pages quota)
-            logger.info("Registering document metadata to Worker API...")
-            ingest_url = f"{API_BASE_URL}/api/pipeline/annual-reports/ingest"
-            payload = {
-                "ticker": ticker,
-                "year": YEAR,
-                "fileName": new_file_name,
-                "fileUrl": f"{API_BASE_URL}/api/documents/temp/view",
-                "r2Key": r2_key,
-                "label": f"Báo cáo thường niên năm {YEAR} (PaddleOCR)",
-                "pageCount": page_count
-            }
-            
-            headers = {
-                "Content-Type": "application/json"
-            }
-            
-            resp = requests.post(ingest_url, json=payload, headers=headers, timeout=30)
-            if resp.status_code != 200:
-                raise Exception(f"Ingest API failed with status {resp.status_code}: {resp.text}")
-                
-            resp_data = resp.json()
-            if not resp_data.get("success"):
-                raise Exception(f"Ingest API returned success=False: {resp_data}")
-                
-            logger.info(f"✅ Successfully completed annual report for {ticker}! Registered document ID: {resp_data.get('documentId')}")
-            
-        except Exception as ocr_err:
-            logger.error(f"OCR or Upload failure for {ticker}: {ocr_err}")
-            escaped_err = str(ocr_err).replace("'", "''").replace("\n", " ")
-            update_queue_status(ticker, 'failed', error_msg=escaped_err)
-            
-        finally:
-            # Step 8: Clean up local temporary files
-            if os.path.exists(local_pdf_path):
-                try:
-                    os.remove(local_pdf_path)
-                    logger.info(f"Cleaned up local PDF: {local_pdf_path}")
-                except Exception as clean_err:
-                    logger.error(f"Failed to delete {local_pdf_path}: {clean_err}")
-                    
-            # Keep local Markdown files as requested for local storage
-            pass
+from python.annual_report.page_slicer import slice_pages
+from python.annual_report.r2_fetcher import download_r2_object
+from python.annual_report.shareholder_extractor import ShareholderExtractor
+from python.annual_report.risk_extractor import RiskExtractor
 
 def main():
-    parser = argparse.ArgumentParser(description="Annual Report 2024 Pipeline Orchestrator")
-    parser.add_argument("--limit", type=int, default=5, help="Number of pending tickers to process")
-    parser.add_argument("--tickers", type=str, help="Comma-separated list of specific tickers to run (e.g. VNM,VCB)")
-    args = parser.parse_args()
+    # Cấu hình encoding utf-8 cho stdout để tránh lỗi encoding trên Windows
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
+    parser = argparse.ArgumentParser(description="Annual Report Data Extraction Pipeline")
+    parser.add_argument("--ticker", required=True, help="Stock ticker (e.g. VNM)")
+    parser.add_argument("--year", type=int, default=2024, help="Report year")
+    parser.add_argument("--r2_key", help="R2 object key pattern")
+    parser.add_argument("--token_path", default="xiaomi_token.txt", help="Xiaomi token file path")
+    parser.add_argument("--local_file", help="Path to local markdown file (offline bypass R2)")
     
-    ticker_list = None
-    if args.tickers:
-        ticker_list = [t.strip() for t in args.tickers.split(",") if t.strip()]
-        
-    run_pipeline(limit=args.limit, tickers=ticker_list)
+    args = parser.parse_args()
+
+    content = None
+    if args.local_file:
+        if os.path.exists(args.local_file):
+            print(f"Reading local file: {args.local_file}", file=sys.stderr, flush=True)
+            with open(args.local_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        else:
+            print(f"Error: Local file {args.local_file} not found.", file=sys.stderr, flush=True)
+            sys.exit(1)
+    elif args.r2_key:
+        print(f"Downloading from R2: {args.r2_key}", file=sys.stderr, flush=True)
+        # Sử dụng ticker để tạo tên file tạm duy nhất tránh ghi đè
+        temp_name = f"temp_r2_{args.ticker}_{args.year}.md"
+        content = download_r2_object(args.r2_key, temp_name)
+    else:
+        print("Error: Either --r2_key or --local_file must be specified.", file=sys.stderr, flush=True)
+        sys.exit(1)
+
+    if not content:
+        print(f"Error: Failed to obtain report content for {args.ticker}.", file=sys.stderr, flush=True)
+        sys.exit(1)
+
+    # 1. Cắt slice & Extract Cơ cấu Cổ đông
+    shareholder_keywords = ['cơ cấu cổ đông', 'cổ đông lớn', 'danh sách cổ đông', 'quan hệ nhà đầu tư']
+    shareholder_text = slice_pages(content, shareholder_keywords, window_size=15)
+    
+    shareholder_data = {"shareholder_structures": []}
+    if shareholder_text:
+        print("Sliced shareholder segment successfully. Running extraction...", file=sys.stderr, flush=True)
+        try:
+            sh_extractor = ShareholderExtractor(token_file_path=args.token_path)
+            shareholder_data = sh_extractor.extract(shareholder_text)
+        except Exception as e:
+            print(f"Shareholder extraction failed: {e}. Skipping.", file=sys.stderr, flush=True)
+    else:
+        print("Shareholder keywords not found in document. Returning empty list.", file=sys.stderr, flush=True)
+
+    # 2. Cắt slice & Extract Rủi ro doanh nghiệp tự khai
+    risk_keywords = ['quản trị rủi ro', 'rủi ro trọng yếu', 'các yếu tố rủi ro', 'rủi ro kinh doanh']
+    risk_text = slice_pages(content, risk_keywords, window_size=15)
+
+    risk_data = {"business_risks": []}
+    if risk_text:
+        print("Sliced business risk segment successfully. Running extraction...", file=sys.stderr, flush=True)
+        try:
+            risk_extractor = RiskExtractor(token_file_path=args.token_path)
+            risk_data = risk_extractor.extract(risk_text)
+        except Exception as e:
+            print(f"Risk extraction failed: {e}. Skipping.", file=sys.stderr, flush=True)
+    else:
+        print("Risk keywords not found in document. Returning empty list.", file=sys.stderr, flush=True)
+
+    # 3. Gộp kết quả
+    combined_result = {
+        "shareholder_structures": shareholder_data.get("shareholder_structures", []),
+        "business_risks": risk_data.get("business_risks", [])
+    }
+
+    # Xuất ra stdout dưới dạng JSON chuẩn
+    print(json.dumps(combined_result, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()

@@ -145,6 +145,7 @@ export const financialInsights = sqliteTable('financial_insights', {
   inventoryRisk: text('inventory_risk'),
   governanceRiskScore: integer('governance_risk_score'),
   overallAnalysis: text('overall_analysis'),
+  businessRisks: text('business_risks'),
 }, (table) => ({
   finInsTickerYearRtIdx: index('fin_ins_ticker_year_rt_idx').on(table.ticker, table.year, table.reportType),
 }));
@@ -171,3 +172,19 @@ export const dailyQuotaLog = sqliteTable('daily_quota_log', {
   pagesUsed: integer('pages_used').default(0),
   pagesLimit: integer('pages_limit').default(19500),
 });
+
+// 14. Shareholder Structures Table
+export const shareholderStructures = sqliteTable('shareholder_structures', {
+  id: text('id').primaryKey(), // Format: 'TCB_2024_0', 'TCB_2024_1', ...
+  ticker: text('ticker').notNull().references(() => companies.ticker, { onDelete: 'cascade' }),
+  year: integer('year').notNull().default(2024),
+  shareholderName: text('shareholder_name').notNull(),
+  shareholderType: text('shareholder_type').notNull(), // 'state' | 'foreign' | 'domestic_institutional' | 'domestic_individual' | 'management' | 'others'
+  shareCount: integer('share_count'),
+  sharePercentage: real('share_percentage').notNull(),
+  isMajorShareholder: integer('is_major_shareholder', { mode: 'boolean' }).notNull().default(false),
+  isBoardMember: integer('is_board_member', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: integer('updated_at').default(sql`(strftime('%s', 'now'))`),
+}, (table) => ({
+  shStructTickerYearIdx: index('sh_struct_ticker_year_idx').on(table.ticker, table.year),
+}));
