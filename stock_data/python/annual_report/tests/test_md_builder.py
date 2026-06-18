@@ -28,7 +28,10 @@ def test_build_markdown_report_success():
     
     assert filepath is not None
     assert os.path.exists(filepath)
-    assert filepath.endswith("VNM_2024.md")
+    
+    # Kỳ vọng đường dẫn theo cấu trúc mới: TEMP_MD_DIR/VNM/2024/VNM_BCTN_2024.md
+    expected_path = os.path.join(TEMP_MD_DIR, "VNM", "2024", "VNM_BCTN_2024.md")
+    assert os.path.abspath(filepath) == os.path.abspath(expected_path)
     
     # Verify file content
     with open(filepath, "r", encoding="utf-8") as f:

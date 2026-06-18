@@ -26,9 +26,11 @@ def build_markdown_report(
         logger.warning(f"No pages provided to build markdown report for {symbol} ({year})")
         return None
         
-    os.makedirs(output_dir, exist_ok=True)
-    filename = f"{symbol.upper()}_{year}.md"
-    filepath = os.path.join(output_dir, filename)
+    # Tạo cấu trúc thư mục con: {output_dir}/{symbol}/{year}/
+    target_dir = os.path.join(output_dir, symbol.upper(), str(year))
+    os.makedirs(target_dir, exist_ok=True)
+    filename = f"{symbol.upper()}_BCTN_{year}.md"
+    filepath = os.path.join(target_dir, filename)
     
     try:
         logger.info(f"Generating markdown report for {symbol} ({year}) with {len(pages)} pages...")
