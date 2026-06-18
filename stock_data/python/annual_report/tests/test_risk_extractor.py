@@ -4,8 +4,8 @@ from python.annual_report.risk_extractor import RiskExtractor
 
 class TestRiskExtractor(unittest.TestCase):
     def setUp(self):
-        # Thiết lập giả lập XiaomiMimoClient để tránh gọi thật
-        self.patcher = patch('python.annual_report.risk_extractor.XiaomiMimoClient')
+        # Thiết lập giả lập CloudflareAiClient để tránh gọi thật
+        self.patcher = patch('python.annual_report.risk_extractor.CloudflareAiClient')
         self.mock_client_cls = self.patcher.start()
         self.mock_client = MagicMock()
         self.mock_client_cls.return_value = self.mock_client

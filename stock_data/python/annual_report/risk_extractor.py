@@ -1,6 +1,6 @@
 import json
 import jsonschema
-from python.extractor.client import XiaomiMimoClient
+from python.annual_report.cf_client import CloudflareAiClient
 
 # Định nghĩa JSON Schema cho Rủi ro Doanh nghiệp
 BUSINESS_RISK_SCHEMA = {
@@ -29,8 +29,8 @@ BUSINESS_RISK_SCHEMA = {
 }
 
 class RiskExtractor:
-    def __init__(self, token_file_path: str = "xiaomi_token.txt"):
-        self.client = XiaomiMimoClient(token_file_path=token_file_path)
+    def __init__(self, token_file_path: str = None):
+        self.client = CloudflareAiClient()
         self.schema = BUSINESS_RISK_SCHEMA
 
     def extract(self, text: str) -> dict:

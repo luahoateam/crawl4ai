@@ -1,6 +1,6 @@
 import json
 import jsonschema
-from python.extractor.client import XiaomiMimoClient
+from python.annual_report.cf_client import CloudflareAiClient
 
 # Định nghĩa JSON Schema cho Cơ cấu Cổ đông
 SHAREHOLDER_SCHEMA = {
@@ -30,8 +30,8 @@ SHAREHOLDER_SCHEMA = {
 }
 
 class ShareholderExtractor:
-    def __init__(self, token_file_path: str = "xiaomi_token.txt"):
-        self.client = XiaomiMimoClient(token_file_path=token_file_path)
+    def __init__(self, token_file_path: str = None):
+        self.client = CloudflareAiClient()
         self.schema = SHAREHOLDER_SCHEMA
 
     def extract(self, text: str) -> dict:
