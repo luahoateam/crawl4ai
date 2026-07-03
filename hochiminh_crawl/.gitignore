@@ -1,0 +1,5 @@
+# Bỏ qua kết quả cào và file log, checkpoint
+output/
+checkpoint.json
+crawl.log
+__pycache__/
